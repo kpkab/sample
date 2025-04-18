@@ -34,3 +34,48 @@ Your API maintains its clean route structure with the prefix as a path parameter
 No changes are needed to the existing endpoints or services
 
 Your API is now ready to handle both direct calls with the prefix in the path parameter and client calls with the prefix at the beginning of the URL.
+
+Now that the config and namespace endpoints are working, lets move on to the table endpoint. Please follow the Iceberg_Rest_catalog_Requirement.md, pydantic_model.py files in the project knowledge and the OpenAPI spec document attached to this chat conversation. Please review all the documents before starting to code. The database models are already defined, so please use that. Please make sure to follow the design document for all the namespace related endpoints. Please add a lot of logging where ever possible. Remember how prefix is used and handled within the code. lets start coding the table endpoints.
+
+In # app/services/table.py under load_credentials() function, did you complete the code to fetch credentials from the database based on the table's storage location?
+Can we complete this code please.
+
+In # app/services/table.py did you complete the async def report_metrics() function??
+
+Missing API Endpoints and Service Functions
+For the missing endpoints and functions, I'll outline what needs to be implemented:
+1. POST /v1/{prefix}/namespaces/{namespace}/tables/{table} - Commit updates to a table
+This endpoint needs to be added to tables.py with the corresponding commit_table function in table.py. The function should validate the provided requirements against the current table state and apply the updates if the requirements are met.
+2. POST /v1/{prefix}/namespaces/{namespace}/register - Register a table
+This endpoint needs to be added to tables.py with the corresponding register_table function in table.py. The function should register a table using a provided metadata file location.
+3. Table scan planning endpoints
+The following scan planning endpoints need to be implemented:
+
+POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan
+GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}
+DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}
+POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks
+
+These require corresponding service functions:
+
+plan_table_scan
+fetch_planning_result
+cancel_planning
+fetch_scan_tasks
+
+4. POST /v1/{prefix}/transactions/commit - Commit transaction
+This endpoint needs to be added along with a commit_transaction function that can apply updates to multiple tables in an atomic operation.
+Conclusion
+To fully implement the Iceberg REST Catalog API according to the OpenAPI spec and requirements document, you need to:
+
+Complete the report_metrics() and load_credentials() functions as shown above
+Implement the missing endpoints and service functions for:
+
+Committing updates to a table
+Registering a table
+Table scan planning operations
+Committing transactions
+
+
+
+Would you like me to provide implementations for any of these missing components?

@@ -478,3 +478,51 @@ asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
 2025-04-18 01:59:21,072 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
 2025-04-18 01:59:21,080 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
 2025-04-18 01:59:21,080 - iceberg-catalog - INFO - [main.py:52] - Database connection closed
+2025-04-18 02:18:48,994 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 02:18:49,048 - iceberg-catalog - INFO - [main.py:45] - Starting up application
+2025-04-18 02:18:49,048 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 02:18:49,204 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 02:18:49,204 - iceberg-catalog - INFO - [main.py:47] - Database connection established
+2025-04-18 09:12:47,126 - iceberg-catalog - INFO - [main.py:51] - Shutting down application
+2025-04-18 09:12:47,128 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 09:12:47,130 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 09:12:47,130 - iceberg-catalog - INFO - [main.py:53] - Database connection closed
+2025-04-18 09:12:47,332 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 09:12:47,383 - iceberg-catalog - INFO - [main.py:45] - Starting up application
+2025-04-18 09:12:47,383 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 09:12:47,544 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 09:12:47,545 - iceberg-catalog - INFO - [main.py:47] - Database connection established
+2025-04-18 09:13:27,141 - iceberg-catalog - INFO - [main.py:51] - Shutting down application
+2025-04-18 09:13:27,144 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 09:13:27,162 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 09:13:27,163 - iceberg-catalog - INFO - [main.py:53] - Database connection closed
+2025-04-18 09:13:27,371 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 09:13:27,423 - iceberg-catalog - INFO - [main.py:45] - Starting up application
+2025-04-18 09:13:27,424 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 09:13:27,577 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 09:13:27,577 - iceberg-catalog - INFO - [main.py:47] - Database connection established
+2025-04-18 09:14:07,591 - iceberg-catalog - INFO - [main.py:51] - Shutting down application
+2025-04-18 09:14:07,595 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 09:14:07,605 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 09:14:07,606 - iceberg-catalog - INFO - [main.py:53] - Database connection closed
+2025-04-18 09:14:07,768 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 09:14:07,815 - iceberg-catalog - INFO - [main.py:45] - Starting up application
+2025-04-18 09:14:07,815 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 09:14:07,963 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 09:14:07,963 - iceberg-catalog - INFO - [main.py:47] - Database connection established
+2025-04-18 09:16:40,501 - iceberg-catalog - INFO - [main.py:51] - Shutting down application
+2025-04-18 09:16:40,505 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 09:16:40,546 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 09:16:40,547 - iceberg-catalog - INFO - [main.py:53] - Database connection closed
+2025-04-18 09:16:40,736 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 09:16:40,785 - iceberg-catalog - INFO - [main.py:45] - Starting up application
+2025-04-18 09:16:40,785 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 09:16:40,935 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 09:16:40,935 - iceberg-catalog - INFO - [main.py:47] - Database connection established
+2025-04-18 09:19:03,006 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: None
+2025-04-18 09:19:03,008 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: default
+2025-04-18 09:19:03,045 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 09:21:55,460 - iceberg-catalog - INFO - [main.py:51] - Shutting down application
+2025-04-18 09:21:55,461 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 09:21:55,464 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 09:21:55,464 - iceberg-catalog - INFO - [main.py:53] - Database connection closed
