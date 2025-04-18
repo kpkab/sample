@@ -6,7 +6,8 @@ from app.models.namespace import Namespace
 from app.models.table import (
     TableIdentifier, ListTablesResponse, CreateTableRequest, RegisterTableRequest,
     LoadTableResult, CommitTableRequest, CommitTableResponse, StorageCredential,
-    LoadCredentialsResponse, ReportMetricsRequest, RenameTableRequest
+    LoadCredentialsResponse, ReportMetricsRequest, RenameTableRequest,
+    CommitTransactionRequest
 )
 from app.services.namespace import NamespaceService
 from app.services.table import TableService
@@ -196,7 +197,7 @@ async def load_table(
         logger.info(f"Load table request. prefix: {prefix}, namespace: {namespace}, table: {table}, snapshots: {snapshots}")
         namespace_levels = NamespaceService.parse_namespace(namespace)
         
-        # We'll replace the standard call with our own implementation to handle 304 properly
+        # Get table basic info
         table_id, etag, table_metadata = await TableService.get_table_basic_info(namespace_levels, table, if_none_match)
         
         # Always load credentials regardless of 304 status
@@ -211,13 +212,13 @@ async def load_table(
             # Get the last successful response and add credentials
             cached_result = await TableService.get_cached_table_metadata(namespace_levels, table)
             if cached_result:
+                # Ensure metadata-location exists in cached result
+                if "metadata-location" not in cached_result or cached_result["metadata-location"] is None:
+                    location = cached_result["metadata"].get("location")
+                    if location:
+                        cached_result["metadata-location"] = f"{location}/metadata/current.metadata.json"
+                
                 cached_result["config"] = config
-                # cached_result["storage-credentials"] = [c.dict(by_alias=True) for c in credentials]
-                # cached_result["storage-credentials"] = [
-                #     json.loads(StorageCredential(**cred).json()) 
-                #     for cred in credentials
-                # ]
-                # Fix this line in the tables.py route handler
                 cached_result["storage-credentials"] = [c.dict(by_alias=True) for c in credentials] if credentials else None
                 
                 return Response(
@@ -236,7 +237,13 @@ async def load_table(
         # Add config and credentials
         result_dict = result.dict(by_alias=True)
         result_dict["config"] = config
-        result_dict["storage-credentials"] = [c.dict(by_alias=True) for c in credentials]
+        result_dict["storage-credentials"] = [c.dict(by_alias=True) for c in credentials] if credentials else None
+        
+        # Double check metadata-location exists
+        if "metadata-location" not in result_dict or result_dict["metadata-location"] is None:
+            location = result_dict["metadata"].get("location")
+            if location:
+                result_dict["metadata-location"] = f"{location}/metadata/current.metadata.json"
         
         # Cache this response for future 304 requests
         await TableService.cache_table_metadata(namespace_levels, table, result_dict)
@@ -631,6 +638,195 @@ async def report_metrics(
     except Exception as e:
         # Server error
         logger.error(f"Error reporting metrics: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": f"Internal server error: {str(e)}",
+                    "type": "InternalServerError",
+                    "code": 500
+                }
+            }
+        )
+    
+@router.post("/v1/{prefix}/namespaces/{namespace}/tables/{table}",
+    response_model=CommitTableResponse,
+    responses={
+        400: {"model": IcebergErrorResponse},
+        401: {"model": IcebergErrorResponse},
+        403: {"model": IcebergErrorResponse},
+        404: {"model": IcebergErrorResponse},
+        409: {"model": IcebergErrorResponse},
+        419: {"model": IcebergErrorResponse},
+        500: {"model": IcebergErrorResponse},
+        502: {"model": IcebergErrorResponse},
+        504: {"model": IcebergErrorResponse}
+    }
+)
+async def update_table(
+    prefix: str,
+    namespace: str,
+    table: str,
+    request: CommitTableRequest
+):
+    """
+    Commits updates to table metadata.
+    """
+    try:
+        logger.info(f"Update table request. prefix: {prefix}, namespace: {namespace}, table: {table}")
+        namespace_levels = NamespaceService.parse_namespace(namespace)
+        
+        result = await TableService.update_table(namespace_levels, table, request)
+        
+        # Return response with updated metadata
+        return result
+    except ValueError as e:
+        # Handle specific errors
+        if "not found" in str(e).lower() and "namespace" in str(e).lower():
+            logger.warning(f"Namespace not found: {str(e)}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "NoSuchNamespaceException",
+                        "code": 404
+                    }
+                }
+            )
+        elif "not found" in str(e).lower() and "table" in str(e).lower():
+            logger.warning(f"Table not found: {str(e)}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "NoSuchTableException",
+                        "code": 404
+                    }
+                }
+            )
+        elif "requirement" in str(e).lower() or "conflict" in str(e).lower():
+            logger.warning(f"Commit requirement failed: {str(e)}")
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "CommitFailedException",
+                        "code": 409
+                    }
+                }
+            )
+        else:
+            # Other validation errors
+            logger.warning(f"Bad request: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "BadRequestException",
+                        "code": 400
+                    }
+                }
+            )
+    except Exception as e:
+        # Server error
+        logger.error(f"Error updating table: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "message": f"Internal server error: {str(e)}",
+                    "type": "InternalServerError",
+                    "code": 500
+                }
+            }
+        )
+
+@router.post("/v1/{prefix}/transactions/commit",
+    status_code=204,
+    responses={
+        204: {"description": "Success, no content"},
+        400: {"model": IcebergErrorResponse},
+        401: {"model": IcebergErrorResponse},
+        403: {"model": IcebergErrorResponse},
+        404: {"model": IcebergErrorResponse},
+        409: {"model": IcebergErrorResponse},
+        419: {"model": IcebergErrorResponse},
+        500: {"model": IcebergErrorResponse},
+        502: {"model": IcebergErrorResponse},
+        504: {"model": IcebergErrorResponse}
+    }
+)
+async def commit_transaction(
+    prefix: str,
+    request: CommitTransactionRequest
+):
+    """
+    Commits updates to multiple tables in an atomic operation.
+    """
+    try:
+        logger.info(f"Commit transaction request. prefix: {prefix}, table changes: {len(request.table_changes)}")
+        
+        await TableService.commit_transaction(request)
+        
+        # 204 No Content is returned automatically for success
+    except ValueError as e:
+        # Handle specific errors
+        if "not found" in str(e).lower() and "namespace" in str(e).lower():
+            logger.warning(f"Namespace not found: {str(e)}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "NoSuchNamespaceException",
+                        "code": 404
+                    }
+                }
+            )
+        elif "not found" in str(e).lower() and "table" in str(e).lower():
+            logger.warning(f"Table not found: {str(e)}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "NoSuchTableException",
+                        "code": 404
+                    }
+                }
+            )
+        elif "requirement" in str(e).lower() or "conflict" in str(e).lower():
+            logger.warning(f"Commit requirement failed: {str(e)}")
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "CommitFailedException",
+                        "code": 409
+                    }
+                }
+            )
+        else:
+            # Other validation errors
+            logger.warning(f"Bad request: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": str(e),
+                        "type": "BadRequestException",
+                        "code": 400
+                    }
+                }
+            )
+    except Exception as e:
+        # Server error
+        logger.error(f"Error committing transaction: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail={

@@ -9,7 +9,8 @@ from app.models.table import (
     TableIdentifier, ListTablesResponse, CreateTableRequest, RegisterTableRequest,
     LoadTableResult, CommitTableRequest, CommitTableResponse, StorageCredential,
     LoadCredentialsResponse, TableMetadata, PageToken, Schema, Snapshot, Summary,
-    PartitionSpec, SortOrder, ReportMetricsRequest, RenameTableRequest
+    PartitionSpec, SortOrder, ReportMetricsRequest, RenameTableRequest, 
+    TableRequirement, CommitTransactionRequest
 )
 from app.services.namespace import NamespaceService
 from app.utils.logger import logger
@@ -117,6 +118,29 @@ class TableService:
             raise
     
     @staticmethod
+    async def get_default_warehouse_location() -> str:
+        """Get the default warehouse location from catalog config."""
+        try:
+            query = """
+            SELECT config_json->'defaults'->>'warehouse.location' as warehouse_location
+            FROM catalog_config
+            LIMIT 1
+            """
+            result = await db.fetch_one(query)
+            
+            if result and result["warehouse_location"]:
+                warehouse_location = result["warehouse_location"]
+                logger.debug(f"Using configured warehouse location: {warehouse_location}")
+                return warehouse_location
+            
+            # Fallback to default if not configured
+            logger.warning("Default warehouse location not configured, using fallback value")
+            return "s3://default-warehouse"
+        except Exception as e:
+            logger.error(f"Error fetching default warehouse location: {str(e)}", exc_info=True)
+            return "s3://default-warehouse"  # Fallback to default
+
+    @staticmethod
     async def table_exists(namespace_levels: List[str], table_name: str) -> bool:
         """
         Check if a table exists within a namespace.
@@ -178,15 +202,34 @@ class TableService:
         # Define warehouse location if not provided
         location = request.location
         if not location:
-            # Default location based on namespace and table name
-            location = f"s3://default-warehouse/{'.'.join(namespace_levels)}/{request.name}"
+            # # Default location based on namespace and table name
+            # location = f"s3://default-warehouse/{'.'.join(namespace_levels)}/{request.name}"
+            # logger.debug(f"Using default location: {location}")
+            # Get default warehouse location from config
+            default_warehouse = await TableService.get_default_warehouse_location()
+            location = f"{default_warehouse}/{'.'.join(namespace_levels)}/{request.name}"
             logger.debug(f"Using default location: {location}")
-        
         try:
             async with db.transaction():
-                # Process schema
+                # Process schema - Ensure schema_id is properly set
                 schema_json = json.loads(request.schema_.json(by_alias=True))
                 schema_id = 0  # Initial schema ID
+                
+                # Add schema_id to schema_json if not already present
+                if "schema-id" not in schema_json:
+                    schema_json["schema-id"] = schema_id
+                
+                # Check for identifier fields (primary keys)
+                identifier_field_ids = []
+                for field in request.schema_.fields:
+                    # We can add logic here to detect primary key fields 
+                    # For now, we'll set an empty array which is valid for tables without primary keys
+                    if hasattr(field, 'is_primary_key') and field.is_primary_key:
+                        identifier_field_ids.append(field.id)
+                
+                # Add identifier_field_ids to schema if we found any
+                if identifier_field_ids:
+                    schema_json["identifier-field-ids"] = identifier_field_ids
                 
                 # Calculate last column ID based on schema
                 last_column_id = 0
@@ -194,16 +237,28 @@ class TableService:
                     if field.id > last_column_id:
                         last_column_id = field.id
                 
-                # Process partition spec
+                # Process partition spec - Ensure spec_id is properly set
                 partition_spec_json = None
                 spec_id = 0
                 last_partition_id = 0
                 
                 if request.partition_spec:
                     partition_spec_json = json.loads(request.partition_spec.json(by_alias=True))
-                    for field in request.partition_spec.fields:
-                        if field.field_id and field.field_id > last_partition_id:
-                            last_partition_id = field.field_id
+                    
+                    # Add spec-id if not present
+                    if "spec-id" not in partition_spec_json:
+                        partition_spec_json["spec-id"] = spec_id
+                    
+                    # Ensure all partition fields have field_id
+                    if "fields" in partition_spec_json:
+                        for field in partition_spec_json["fields"]:
+                            if "field-id" not in field or field["field-id"] is None:
+                                last_partition_id += 1
+                                field["field-id"] = last_partition_id
+                            else:
+                                field_id = field["field-id"]
+                                if field_id > last_partition_id:
+                                    last_partition_id = field_id
                 else:
                     # Create empty default partition spec
                     partition_spec_json = {"spec-id": 0, "fields": []}
@@ -271,48 +326,23 @@ class TableService:
 
                 # Handle credentials if provided
                 if hasattr(request, 'credentials') and request.credentials:
-                    # Extract prefix from namespace or use default
+                    # Process credentials
                     prefix = namespace_levels[0] if namespace_levels else 'default'
-                    
-                    # Extract warehouse location from the table location
-                    # Get the base warehouse path (e.g., s3://bucket/prefix/)
                     warehouse_parts = location.split('/')
                     warehouse = '/'.join(warehouse_parts[:3]) + '/'  # e.g., s3://bucket/
                     
-                    # Check if credentials exist for this warehouse
                     existing_creds = await CredentialService.get_credentials_for_location(location)
                     
                     if not existing_creds:
-                        # Store new credentials
                         cred_id = await CredentialService.upsert_credentials(
                             prefix,
                             warehouse,
                             request.credentials.config,
-                            None  # Store as global credentials, not table-specific
+                            None
                         )
                         logger.debug(f"Added credentials with ID: {cred_id} for warehouse: {warehouse}")
                 
-                
                 # Prepare response metadata
-                # table_metadata = TableMetadata(
-                #     format_version=format_version,
-                #     table_uuid=table_uuid,
-                #     location=location,
-                #     last_updated_ms=now_ms,
-                #     properties=properties,
-                #     schemas=[request.schema_],
-                #     current_schema_id=schema_id,
-                #     last_column_id=last_column_id,
-                #     partition_specs=[request.partition_spec] if request.partition_spec else [PartitionSpec(spec_id=0, fields=[])],
-                #     default_spec_id=spec_id,
-                #     last_partition_id=last_partition_id,
-                #     sort_orders=[request.write_order] if request.write_order else [SortOrder(**{"order-id": 0, "fields": []})],
-                #     default_sort_order_id=sort_order_id,
-                #     snapshots=[],
-                #     refs={},
-                #     current_snapshot_id=None,
-                #     last_sequence_number=0
-                # )
                 table_metadata = TableMetadata.parse_obj({
                     "format-version": format_version,
                     "table-uuid": table_uuid,
@@ -333,7 +363,7 @@ class TableService:
                     "last-sequence-number": 0
                 })
                 
-                # Generate metadata location
+                # Generate metadata location - This is critical!
                 metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
                 logger.info(f"Created table {request.name} in namespace {namespace_levels} with UUID {table_uuid}")
                 
@@ -345,8 +375,9 @@ class TableService:
                 if x_iceberg_access_delegation:
                     storage_credentials = await TableService.get_storage_credentials(table_id)
                 
+                # Return with proper metadata_location
                 return LoadTableResult(
-                    metadata_location=metadata_location,
+                    metadata_location=metadata_location,  # Ensure this is set
                     metadata=table_metadata,
                     config=config,
                     storage_credentials=storage_credentials
@@ -742,6 +773,15 @@ class TableService:
             schema_json = record["schema_json"]
             if isinstance(schema_json, str):
                 schema_json = json.loads(schema_json)
+            
+            # # Ensure schema_id is set
+            # if "schema-id" not in schema_json and record["schema_id"] is not None:
+            #     schema_json["schema-id"] = record["schema_id"]
+            # Ensure schema_id is set - this is critical!
+            if "schema-id" not in schema_json or schema_json["schema-id"] is None:
+                schema_json["schema-id"] = record["schema_id"]
+                logger.debug(f"Added missing schema-id {record['schema_id']} to schema")
+
             schema = Schema.parse_obj(schema_json)
             schemas.append(schema)
         
@@ -756,8 +796,33 @@ class TableService:
             spec_json = record["spec_json"]
             if isinstance(spec_json, str):
                 spec_json = json.loads(spec_json)
+            
+            # Ensure spec_id is set
+            # if "spec-id" not in spec_json and record["spec_id"] is not None:
+            #     spec_json["spec-id"] = record["spec_id"]
+            if "spec-id" not in spec_json or spec_json["spec-id"] is None:
+                spec_json["spec-id"] = record["spec_id"]
+                logger.debug(f"Added missing spec-id {record['spec_id']} to partition spec")
+
+            # Ensure all partition fields have field_id
+            last_field_id = table_record["last_partition_id"]
+            if "fields" in spec_json:
+                for field in spec_json["fields"]:
+                    if "field-id" not in field or field["field-id"] is None:
+                        last_field_id += 1
+                        field["field-id"] = last_field_id
+                        logger.debug(f"Added missing field-id {last_field_id} to partition field")
+            
             spec = PartitionSpec.parse_obj(spec_json)
             partition_specs.append(spec)
+            # if "fields" in spec_json:
+            #     for field in spec_json["fields"]:
+            #         if "field-id" not in field or field["field-id"] is None:
+            #             # Generate a field-id if missing
+            #             field["field-id"] = table_record["last_partition_id"] + 1
+                
+            # spec = PartitionSpec.parse_obj(spec_json)
+            # partition_specs.append(spec)
         
         # Fetch sort orders
         orders_query = """
@@ -869,7 +934,7 @@ class TableService:
         # Parse into TableMetadata object
         table_metadata = TableMetadata.parse_obj(table_metadata_dict)
         
-        # Generate metadata location
+        # Generate metadata location - This is critical!
         metadata_location = f"{table_record['location']}/metadata/current.metadata.json"
         
         # Get table configuration and credentials
@@ -878,7 +943,7 @@ class TableService:
         
         # Create the full response dictionary for caching
         result_dict = {
-            "metadata-location": metadata_location,
+            "metadata-location": metadata_location,  # Ensure this is set
             "metadata": table_metadata.dict(by_alias=True),
             "config": config,
             "storage-credentials": [c.dict(by_alias=True) for c in storage_credentials] if storage_credentials else None
@@ -891,7 +956,7 @@ class TableService:
         
         # Return the LoadTableResult
         return LoadTableResult(
-            metadata_location=metadata_location,
+            metadata_location=metadata_location,  # Ensure metadata_location is included
             metadata=table_metadata,
             config=config,
             storage_credentials=storage_credentials
@@ -1048,13 +1113,27 @@ class TableService:
             schema_records = await db.fetch_all(schemas_query, table_id)
             schemas = []
             
+            # for record in schema_records:
+            #     schema_json = record["schema_json"]
+            #     if isinstance(schema_json, str):
+            #         schema_json = json.loads(schema_json)
+            #     schema = Schema.parse_obj(schema_json)
+            #     schemas.append(schema)
+            
+            # When processing schemas in build_table_response
             for record in schema_records:
                 schema_json = record["schema_json"]
                 if isinstance(schema_json, str):
                     schema_json = json.loads(schema_json)
+                
+                # Ensure schema_id is set - this is critical!
+                if "schema-id" not in schema_json or schema_json["schema-id"] is None:
+                    schema_json["schema-id"] = record["schema_id"]
+                    logger.debug(f"Added missing schema-id {record['schema_id']} to schema")
+                
                 schema = Schema.parse_obj(schema_json)
                 schemas.append(schema)
-            
+
             # Fetch partition specs
             specs_query = """
             SELECT spec_id, spec_json FROM partition_specs WHERE table_id = $1
@@ -1066,6 +1145,21 @@ class TableService:
                 spec_json = record["spec_json"]
                 if isinstance(spec_json, str):
                     spec_json = json.loads(spec_json)
+                
+                # Ensure spec_id is set - this is critical!
+                if "spec-id" not in spec_json or spec_json["spec-id"] is None:
+                    spec_json["spec-id"] = record["spec_id"]
+                    logger.debug(f"Added missing spec-id {record['spec_id']} to partition spec")
+                
+                # Ensure all partition fields have field_id
+                last_field_id = table_record["last_partition_id"]
+                if "fields" in spec_json:
+                    for field in spec_json["fields"]:
+                        if "field-id" not in field or field["field-id"] is None:
+                            last_field_id += 1
+                            field["field-id"] = last_field_id
+                            logger.debug(f"Added missing field-id {last_field_id} to partition field")
+                
                 spec = PartitionSpec.parse_obj(spec_json)
                 partition_specs.append(spec)
             
@@ -1501,3 +1595,852 @@ class TableService:
             )
             
         logger.info(f"Recorded metrics for table {namespace_levels}.{table_name}, report type: {request.report_type}")
+
+    @staticmethod
+    async def update_table(
+        namespace_levels: List[str],
+        table_name: str,
+        request: CommitTableRequest
+    ) -> CommitTableResponse:
+        """
+        Update table metadata by applying a series of updates.
+        Handles table evolution including schema evolution, partition evolution,
+        snapshot management, etc.
+        """
+        logger.info(f"Processing table update for {namespace_levels}.{table_name}")
+        
+        # Get namespace ID and table ID
+        namespace_id = await TableService._get_namespace_id(namespace_levels)
+        if namespace_id is None:
+            raise ValueError(f"Namespace not found: {namespace_levels}")
+        
+        # Get table details
+        query = """
+        SELECT t.id, t.table_uuid, t.location, t.current_snapshot_id, t.last_sequence_number,
+            t.last_updated_ms, t.last_column_id, t.schema_id, t.current_schema_id,
+            t.default_spec_id, t.last_partition_id, t.default_sort_order_id,
+            t.properties, t.format_version, t.row_lineage, t.next_row_id
+        FROM tables t
+        WHERE t.namespace_id = $1 AND t.name = $2
+        """
+        
+        table_record = await db.fetch_one(query, namespace_id, table_name)
+        if not table_record:
+            raise ValueError(f"Table not found: {namespace_levels}.{table_name}")
+        
+        table_id = table_record["id"]
+        table_uuid = str(table_record["table_uuid"])
+        location = table_record["location"]
+        
+        try:
+            async with db.transaction():
+                # Verify all requirements are met
+                for requirement in request.requirements:
+                    if not await TableService._validate_requirement(table_id, table_record, requirement):
+                        requirement_type = getattr(requirement, "type", "Unknown")
+                        raise ValueError(f"Table requirement not met: {requirement_type}")
+                
+                # Process all updates
+                for update in request.updates:
+                    await TableService._apply_update(table_id, table_record, update.__root__)
+                    
+                # Reload table record after updates
+                table_record = await db.fetch_one(query, namespace_id, table_name)
+                
+                # Generate new metadata location
+                now_ms = int(time.time() * 1000)
+                metadata_file_uuid = uuid.uuid4()
+                metadata_location = f"{location}/metadata/{table_record['format_version']:05d}-{metadata_file_uuid}.metadata.json"
+                
+                # Create metadata log entry
+                log_query = """
+                INSERT INTO metadata_log (table_id, metadata_file, timestamp_ms)
+                VALUES ($1, $2, $3)
+                """
+                await db.execute(log_query, table_id, metadata_location, now_ms)
+                
+                # Construct the updated table metadata
+                table_metadata = await TableService._build_table_metadata(table_id)
+                
+                logger.info(f"Successfully updated table {namespace_levels}.{table_name}")
+                
+                # Return updated metadata
+                return CommitTableResponse(
+                    metadata_location=metadata_location,
+                    metadata=table_metadata
+                )
+        except ValueError:
+            # Re-raise ValueError
+            raise
+        except Exception as e:
+            logger.error(f"Error updating table: {str(e)}", exc_info=True)
+            raise
+
+    @staticmethod
+    async def _get_namespace_id(namespace_levels: List[str]) -> Optional[int]:
+        """Helper method to get namespace ID from namespace levels."""
+        query = """
+        SELECT id FROM namespaces WHERE levels = $1
+        """
+        record = await db.fetch_one(query, namespace_levels)
+        return record["id"] if record else None
+
+    @staticmethod
+    async def _validate_requirement(
+        table_id: int,
+        table_record: Dict,
+        requirement: TableRequirement
+    ) -> bool:
+        """Validate that a table requirement is met."""
+        requirement_type = getattr(requirement, "type", None)
+        logger.debug(f"Validating requirement type: {requirement_type}")
+        
+        if requirement_type == "assert-create":
+            # Table must not exist (this should never be true here since we already loaded the table)
+            return False
+        
+        elif requirement_type == "assert-table-uuid":
+            # Table UUID must match
+            return str(table_record["table_uuid"]) == requirement.uuid
+        
+        elif requirement_type == "assert-ref-snapshot-id":
+            # Check if ref exists and points to the right snapshot
+            query = """
+            SELECT snapshot_id FROM snapshot_refs 
+            WHERE table_id = $1 AND name = $2
+            """
+            record = await db.fetch_one(query, table_id, requirement.ref)
+            
+            if requirement.snapshot_id is None:
+                # Ref must not exist
+                return record is None
+            else:
+                # Ref must exist and point to the right snapshot
+                return record and record["snapshot_id"] == requirement.snapshot_id
+        
+        elif requirement_type == "assert-last-assigned-field-id":
+            # Last column ID must match
+            return table_record["last_column_id"] == requirement.last_assigned_field_id
+        
+        elif requirement_type == "assert-current-schema-id":
+            # Current schema ID must match
+            return table_record["current_schema_id"] == requirement.current_schema_id
+        
+        elif requirement_type == "assert-last-assigned-partition-id":
+            # Last partition ID must match
+            return table_record["last_partition_id"] == requirement.last_assigned_partition_id
+        
+        elif requirement_type == "assert-default-spec-id":
+            # Default spec ID must match
+            return table_record["default_spec_id"] == requirement.default_spec_id
+        
+        elif requirement_type == "assert-default-sort-order-id":
+            # Default sort order ID must match
+            return table_record["default_sort_order_id"] == requirement.default_sort_order_id
+        
+        # Unknown requirement type
+        logger.warning(f"Unknown requirement type: {requirement_type}")
+        return False
+
+    @staticmethod
+    async def _apply_update(
+        table_id: int,
+        table_record: Dict,
+        update: Any
+    ) -> None:
+        """Apply a single update to the table."""
+        update_type = getattr(update, "action", None)
+        logger.info(f"Applying update: {update_type}")
+        
+        if update_type == "assign-uuid":
+            # Update table UUID
+            query = """
+            UPDATE tables SET table_uuid = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, update.uuid, table_id)
+        
+        elif update_type == "upgrade-format-version":
+            # Upgrade format version
+            query = """
+            UPDATE tables SET format_version = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, update.format_version, table_id)
+        
+        elif update_type == "add-schema":
+            # Add new schema
+            schema_json = json.loads(update.schema_.json(by_alias=True))
+            
+            # Set schema_id if not already set
+            schema_id = schema_json.get("schema-id")
+            if schema_id is None:
+                # Get the highest schema ID and increment
+                query = """
+                SELECT MAX(schema_id) as max_schema_id FROM schemas WHERE table_id = $1
+                """
+                record = await db.fetch_one(query, table_id)
+                max_schema_id = record["max_schema_id"] if record and record["max_schema_id"] is not None else -1
+                schema_id = max_schema_id + 1
+                schema_json["schema-id"] = schema_id
+            
+            # Calculate last_column_id
+            last_column_id = table_record["last_column_id"]
+            for field in schema_json.get("fields", []):
+                if field.get("id", 0) > last_column_id:
+                    last_column_id = field["id"]
+            
+            # Insert new schema
+            query = """
+            INSERT INTO schemas (table_id, schema_id, schema_json)
+            VALUES ($1, $2, $3)
+            """
+            await db.execute(query, table_id, schema_id, json.dumps(schema_json))
+            
+            # Update table's last_column_id
+            query = """
+            UPDATE tables SET last_column_id = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, last_column_id, table_id)
+        
+        elif update_type == "set-current-schema":
+            # Set current schema
+            schema_id = update.schema_id
+            
+            # If schema_id is -1, set to the latest schema
+            if schema_id == -1:
+                query = """
+                SELECT MAX(schema_id) as schema_id FROM schemas WHERE table_id = $1
+                """
+                record = await db.fetch_one(query, table_id)
+                schema_id = record["schema_id"] if record else 0
+            
+            # Update current schema ID
+            query = """
+            UPDATE tables SET current_schema_id = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, schema_id, table_id)
+        
+        elif update_type == "add-spec":
+            # Add partition spec
+            spec_json = json.loads(update.spec.json(by_alias=True))
+            
+            # Set spec_id if not already set
+            spec_id = spec_json.get("spec-id")
+            if spec_id is None:
+                # Get the highest spec ID and increment
+                query = """
+                SELECT MAX(spec_id) as max_spec_id FROM partition_specs WHERE table_id = $1
+                """
+                record = await db.fetch_one(query, table_id)
+                max_spec_id = record["max_spec_id"] if record and record["max_spec_id"] is not None else -1
+                spec_id = max_spec_id + 1
+                spec_json["spec-id"] = spec_id
+            
+            # Calculate last_partition_id
+            last_partition_id = table_record["last_partition_id"]
+            for field in spec_json.get("fields", []):
+                if "field-id" in field and field["field-id"] is not None:
+                    if field["field-id"] > last_partition_id:
+                        last_partition_id = field["field-id"]
+                else:
+                    # Auto-assign field-id if missing
+                    last_partition_id += 1
+                    field["field-id"] = last_partition_id
+            
+            # Insert new partition spec
+            query = """
+            INSERT INTO partition_specs (table_id, spec_id, spec_json)
+            VALUES ($1, $2, $3)
+            """
+            await db.execute(query, table_id, spec_id, json.dumps(spec_json))
+            
+            # Update table's last_partition_id
+            query = """
+            UPDATE tables SET last_partition_id = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, last_partition_id, table_id)
+        
+        elif update_type == "set-default-spec":
+            # Set default partition spec
+            spec_id = update.spec_id
+            
+            # If spec_id is -1, set to the latest spec
+            if spec_id == -1:
+                query = """
+                SELECT MAX(spec_id) as spec_id FROM partition_specs WHERE table_id = $1
+                """
+                record = await db.fetch_one(query, table_id)
+                spec_id = record["spec_id"] if record else 0
+            
+            # Update default spec ID
+            query = """
+            UPDATE tables SET default_spec_id = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, spec_id, table_id)
+        
+        elif update_type == "add-sort-order":
+            # Add sort order
+            order_json = json.loads(update.sort_order.json(by_alias=True))
+            order_id = order_json.get("order-id")
+            
+            # Insert new sort order
+            query = """
+            INSERT INTO sort_orders (table_id, order_id, order_json)
+            VALUES ($1, $2, $3)
+            """
+            await db.execute(query, table_id, order_id, json.dumps(order_json))
+        
+        elif update_type == "set-default-sort-order":
+            # Set default sort order
+            order_id = update.sort_order_id
+            
+            # If order_id is -1, set to the latest order
+            if order_id == -1:
+                query = """
+                SELECT MAX(order_id) as order_id FROM sort_orders WHERE table_id = $1
+                """
+                record = await db.fetch_one(query, table_id)
+                order_id = record["order_id"] if record else 0
+            
+            # Update default sort order ID
+            query = """
+            UPDATE tables SET default_sort_order_id = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, order_id, table_id)
+        
+        elif update_type == "add-snapshot":
+            # Add snapshot
+            snapshot_json = json.loads(update.snapshot.json(by_alias=True))
+            snapshot_id = snapshot_json.get("snapshot-id")
+            parent_snapshot_id = snapshot_json.get("parent-snapshot-id")
+            sequence_number = snapshot_json.get("sequence-number")
+            timestamp_ms = snapshot_json.get("timestamp-ms")
+            manifest_list = snapshot_json.get("manifest-list")
+            summary = snapshot_json.get("summary", {})
+            schema_id = snapshot_json.get("schema-id")
+            
+            # Insert new snapshot
+            query = """
+            INSERT INTO snapshots (
+                table_id, snapshot_id, parent_snapshot_id, sequence_number,
+                timestamp_ms, manifest_list, summary, schema_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """
+            await db.execute(
+                query, table_id, snapshot_id, parent_snapshot_id, sequence_number,
+                timestamp_ms, manifest_list, json.dumps(summary), schema_id
+            )
+            
+            # Update table's current_snapshot_id and last_sequence_number
+            query = """
+            UPDATE tables SET 
+                current_snapshot_id = $1, 
+                last_sequence_number = GREATEST(last_sequence_number, $2),
+                updated_at = NOW()
+            WHERE id = $3
+            """
+            await db.execute(query, snapshot_id, sequence_number, table_id)
+        
+        elif update_type == "set-snapshot-ref":
+            # Set snapshot reference (branch/tag)
+            ref_name = update.ref_name
+            snapshot_id = update.snapshot_id
+            ref_type = update.type
+            min_snapshots_to_keep = getattr(update, "min_snapshots_to_keep", None)
+            max_snapshot_age_ms = getattr(update, "max_snapshot_age_ms", None)
+            max_ref_age_ms = getattr(update, "max_ref_age_ms", None)
+            
+            # Check if ref already exists
+            query = """
+            SELECT id FROM snapshot_refs
+            WHERE table_id = $1 AND name = $2
+            """
+            record = await db.fetch_one(query, table_id, ref_name)
+            
+            if record:
+                # Update existing ref
+                query = """
+                UPDATE snapshot_refs
+                SET snapshot_id = $1, type = $2, min_snapshots_to_keep = $3,
+                    max_snapshot_age_ms = $4, max_ref_age_ms = $5, updated_at = NOW()
+                WHERE table_id = $6 AND name = $7
+                """
+                await db.execute(
+                    query, snapshot_id, ref_type, min_snapshots_to_keep,
+                    max_snapshot_age_ms, max_ref_age_ms, table_id, ref_name
+                )
+            else:
+                # Insert new ref
+                query = """
+                INSERT INTO snapshot_refs (
+                    table_id, name, snapshot_id, type,
+                    min_snapshots_to_keep, max_snapshot_age_ms, max_ref_age_ms
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """
+                await db.execute(
+                    query, table_id, ref_name, snapshot_id, ref_type,
+                    min_snapshots_to_keep, max_snapshot_age_ms, max_ref_age_ms
+                )
+        
+        elif update_type == "remove-snapshots":
+            # Remove snapshots
+            snapshot_ids = update.snapshot_ids
+            
+            # Delete snapshots
+            query = """
+            DELETE FROM snapshots
+            WHERE table_id = $1 AND snapshot_id = ANY($2)
+            """
+            await db.execute(query, table_id, snapshot_ids)
+        
+        elif update_type == "remove-snapshot-ref":
+            # Remove snapshot reference
+            ref_name = update.ref_name
+            
+            # Delete ref
+            query = """
+            DELETE FROM snapshot_refs
+            WHERE table_id = $1 AND name = $2
+            """
+            await db.execute(query, table_id, ref_name)
+        
+        elif update_type == "set-location":
+            # Set table location
+            new_location = update.location
+            
+            # Update location
+            query = """
+            UPDATE tables SET location = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, new_location, table_id)
+        
+        elif update_type == "set-properties":
+            # Set table properties
+            updates = update.updates
+            
+            # Get current properties
+            current_properties = table_record["properties"]
+            if isinstance(current_properties, str):
+                current_properties = json.loads(current_properties)
+            elif current_properties is None:
+                current_properties = {}
+            
+            # Update properties
+            for key, value in updates.items():
+                current_properties[key] = value
+            
+            # Save updated properties
+            query = """
+            UPDATE tables SET properties = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, json.dumps(current_properties), table_id)
+        
+        elif update_type == "remove-properties":
+            # Remove table properties
+            removals = update.removals
+            
+            # Get current properties
+            current_properties = table_record["properties"]
+            if isinstance(current_properties, str):
+                current_properties = json.loads(current_properties)
+            elif current_properties is None:
+                current_properties = {}
+            
+            # Remove properties
+            for key in removals:
+                if key in current_properties:
+                    del current_properties[key]
+            
+            # Save updated properties
+            query = """
+            UPDATE tables SET properties = $1, updated_at = NOW()
+            WHERE id = $2
+            """
+            await db.execute(query, json.dumps(current_properties), table_id)
+        
+        elif update_type == "set-statistics":
+            # Set table statistics
+            statistics = update.statistics
+            snapshot_id = statistics.snapshot_id
+            statistics_path = statistics.statistics_path
+            file_size_in_bytes = statistics.file_size_in_bytes
+            file_footer_size_in_bytes = statistics.file_footer_size_in_bytes
+            blob_metadata_json = json.loads(json.dumps([b.dict(by_alias=True) for b in statistics.blob_metadata]))
+            
+            # Check if statistics already exist for this snapshot
+            query = """
+            SELECT id FROM table_statistics
+            WHERE table_id = $1 AND snapshot_id = $2
+            """
+            record = await db.fetch_one(query, table_id, snapshot_id)
+            
+            if record:
+                # Update existing statistics
+                query = """
+                UPDATE table_statistics
+                SET statistics_path = $1, file_size_in_bytes = $2,
+                    file_footer_size_in_bytes = $3, blob_metadata = $4
+                WHERE table_id = $5 AND snapshot_id = $6
+                """
+                await db.execute(
+                    query, statistics_path, file_size_in_bytes,
+                    file_footer_size_in_bytes, json.dumps(blob_metadata_json),
+                    table_id, snapshot_id
+                )
+            else:
+                # Insert new statistics
+                query = """
+                INSERT INTO table_statistics (
+                    table_id, snapshot_id, statistics_path,
+                    file_size_in_bytes, file_footer_size_in_bytes, blob_metadata
+                )
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """
+                await db.execute(
+                    query, table_id, snapshot_id, statistics_path,
+                    file_size_in_bytes, file_footer_size_in_bytes, json.dumps(blob_metadata_json)
+                )
+        
+        elif update_type == "set-partition-statistics":
+            # Set partition statistics
+            partition_statistics = update.partition_statistics
+            snapshot_id = partition_statistics.snapshot_id
+            statistics_path = partition_statistics.statistics_path
+            file_size_in_bytes = partition_statistics.file_size_in_bytes
+            
+            # Check if partition statistics already exist for this snapshot
+            query = """
+            SELECT id FROM partition_statistics
+            WHERE table_id = $1 AND snapshot_id = $2
+            """
+            record = await db.fetch_one(query, table_id, snapshot_id)
+            
+            if record:
+                # Update existing statistics
+                query = """
+                UPDATE partition_statistics
+                SET statistics_path = $1, file_size_in_bytes = $2
+                WHERE table_id = $3 AND snapshot_id = $4
+                """
+                await db.execute(
+                    query, statistics_path, file_size_in_bytes, table_id, snapshot_id
+                )
+            else:
+                # Insert new statistics
+                query = """
+                INSERT INTO partition_statistics (
+                    table_id, snapshot_id, statistics_path, file_size_in_bytes
+                )
+                VALUES ($1, $2, $3, $4)
+                """
+                await db.execute(
+                    query, table_id, snapshot_id, statistics_path, file_size_in_bytes
+                )
+        
+        elif update_type == "remove-statistics":
+            # Remove statistics
+            snapshot_id = update.snapshot_id
+            
+            # Delete statistics
+            query = """
+            DELETE FROM table_statistics
+            WHERE table_id = $1 AND snapshot_id = $2
+            """
+            await db.execute(query, table_id, snapshot_id)
+        
+        elif update_type == "remove-partition-statistics":
+            # Remove partition statistics
+            snapshot_id = update.snapshot_id
+            
+            # Delete partition statistics
+            query = """
+            DELETE FROM partition_statistics
+            WHERE table_id = $1 AND snapshot_id = $2
+            """
+            await db.execute(query, table_id, snapshot_id)
+        
+        elif update_type == "remove-partition-specs":
+            # Remove partition specs
+            spec_ids = update.spec_ids
+            
+            # Delete partition specs
+            query = """
+            DELETE FROM partition_specs
+            WHERE table_id = $1 AND spec_id = ANY($2)
+            """
+            await db.execute(query, table_id, spec_ids)
+        
+        elif update_type == "remove-schemas":
+            # Remove schemas
+            schema_ids = update.schema_ids
+            
+            # Delete schemas
+            query = """
+            DELETE FROM schemas
+            WHERE table_id = $1 AND schema_id = ANY($2)
+            """
+            await db.execute(query, table_id, schema_ids)
+        
+        elif update_type == "enable-row-lineage":
+            # Enable row lineage
+            query = """
+            UPDATE tables SET row_lineage = TRUE, updated_at = NOW()
+            WHERE id = $1
+            """
+            await db.execute(query, table_id)
+        
+        else:
+            # Unknown update type
+            logger.warning(f"Unknown update type: {update_type}")
+            raise ValueError(f"Unsupported update type: {update_type}")
+
+    @staticmethod
+    async def _build_table_metadata(table_id: int) -> TableMetadata:
+        """Build complete table metadata object."""
+        # Get table details
+        query = """
+        SELECT t.table_uuid, t.location, t.current_snapshot_id, t.last_sequence_number,
+            t.last_updated_ms, t.last_column_id, t.schema_id, t.current_schema_id,
+            t.default_spec_id, t.last_partition_id, t.default_sort_order_id,
+            t.properties, t.format_version, t.row_lineage, t.next_row_id
+        FROM tables t
+        WHERE t.id = $1
+        """
+        
+        table_record = await db.fetch_one(query, table_id)
+        
+        # Fetch schemas
+        schemas_query = """
+        SELECT schema_id, schema_json FROM schemas WHERE table_id = $1
+        """
+        schema_records = await db.fetch_all(schemas_query, table_id)
+        schemas = []
+        
+        for record in schema_records:
+            schema_json = record["schema_json"]
+            if isinstance(schema_json, str):
+                schema_json = json.loads(schema_json)
+            
+            # Ensure schema_id is set
+            if "schema-id" not in schema_json and record["schema_id"] is not None:
+                schema_json["schema-id"] = record["schema_id"]
+                
+            schema = Schema.parse_obj(schema_json)
+            schemas.append(schema)
+        
+        # Fetch partition specs
+        specs_query = """
+        SELECT spec_id, spec_json FROM partition_specs WHERE table_id = $1
+        """
+        spec_records = await db.fetch_all(specs_query, table_id)
+        partition_specs = []
+        
+        for record in spec_records:
+            spec_json = record["spec_json"]
+            if isinstance(spec_json, str):
+                spec_json = json.loads(spec_json)
+            
+            # Ensure spec_id is set
+            if "spec-id" not in spec_json and record["spec_id"] is not None:
+                spec_json["spec-id"] = record["spec_id"]
+                
+            # Ensure all partition fields have field_id
+            if "fields" in spec_json:
+                for field in spec_json["fields"]:
+                    if "field-id" not in field or field["field-id"] is None:
+                        # Generate a field-id if missing
+                        field["field-id"] = table_record["last_partition_id"] + 1
+                
+            spec = PartitionSpec.parse_obj(spec_json)
+            partition_specs.append(spec)
+        
+        # Fetch sort orders
+        orders_query = """
+        SELECT order_id, order_json FROM sort_orders WHERE table_id = $1
+        """
+        order_records = await db.fetch_all(orders_query, table_id)
+        sort_orders = []
+        
+        for record in order_records:
+            order_json = record["order_json"]
+            if isinstance(order_json, str):
+                order_json = json.loads(order_json)
+            order = SortOrder.parse_obj(order_json)
+            sort_orders.append(order)
+        
+        # Fetch snapshots
+        snapshots_query = """
+        SELECT snapshot_id, parent_snapshot_id, sequence_number, timestamp_ms,
+            manifest_list, summary, schema_id
+        FROM snapshots
+        WHERE table_id = $1
+        """
+        
+        snapshot_records = await db.fetch_all(snapshots_query, table_id)
+        snapshots_list = []
+        
+        for record in snapshot_records:
+            summary_json = record["summary"]
+            if isinstance(summary_json, str):
+                summary_json = json.loads(summary_json)
+            
+            snapshot = Snapshot(
+                snapshot_id=record["snapshot_id"],
+                parent_snapshot_id=record["parent_snapshot_id"],
+                sequence_number=record["sequence_number"],
+                timestamp_ms=record["timestamp_ms"],
+                manifest_list=record["manifest_list"],
+                summary=Summary.parse_obj(summary_json),
+                schema_id=record["schema_id"]
+            )
+            snapshots_list.append(snapshot)
+        
+        # Fetch snapshot references
+        refs_query = """
+        SELECT name, snapshot_id, type, min_snapshots_to_keep,
+            max_snapshot_age_ms, max_ref_age_ms
+        FROM snapshot_refs
+        WHERE table_id = $1
+        """
+        ref_records = await db.fetch_all(refs_query, table_id)
+        refs = {}
+        
+        for record in ref_records:
+            ref = {
+                "type": record["type"],
+                "snapshot-id": record["snapshot_id"],
+            }
+            
+            if record["min_snapshots_to_keep"] is not None:
+                ref["min-snapshots-to-keep"] = record["min_snapshots_to_keep"]
+            
+            if record["max_snapshot_age_ms"] is not None:
+                ref["max-snapshot-age-ms"] = record["max_snapshot_age_ms"]
+                
+            if record["max_ref_age_ms"] is not None:
+                ref["max-ref-age-ms"] = record["max_ref_age_ms"]
+            
+            refs[record["name"]] = ref
+        
+        # Handle properties
+        properties = table_record["properties"]
+        if isinstance(properties, str):
+            properties = json.loads(properties)
+        
+        # Construct table metadata
+        table_metadata_dict = {
+            "format-version": table_record["format_version"],
+            "table-uuid": str(table_record["table_uuid"]),
+            "location": table_record["location"],
+            "last-updated-ms": table_record["last_updated_ms"],
+            "properties": properties or {},
+            "schemas": schemas,
+            "current-schema-id": table_record["current_schema_id"],
+            "last-column-id": table_record["last_column_id"],
+            "partition-specs": partition_specs,
+            "default-spec-id": table_record["default_spec_id"],
+            "last-partition-id": table_record["last_partition_id"],
+            "sort-orders": sort_orders,
+            "default-sort-order-id": table_record["default_sort_order_id"],
+            "snapshots": snapshots_list,
+            "refs": refs,
+            "current-snapshot-id": table_record["current_snapshot_id"],
+            "last-sequence-number": table_record["last_sequence_number"]
+        }
+        
+        # Add optional fields if they exist
+        if table_record.get("row_lineage") is not None:
+            table_metadata_dict["row-lineage"] = table_record["row_lineage"]
+        
+        if table_record.get("next_row_id") is not None:
+            table_metadata_dict["next-row-id"] = table_record["next_row_id"]
+        
+        # Parse into TableMetadata object
+        return TableMetadata.parse_obj(table_metadata_dict)
+    
+    @staticmethod
+    async def commit_transaction(request: CommitTransactionRequest) -> None:
+        """
+        Commits multiple table changes in a single transaction.
+        """
+        logger.info(f"Processing transaction with {len(request.table_changes)} table changes")
+        
+        try:
+            async with db.transaction():
+                # Create transaction record
+                transaction_id = uuid.uuid4()
+                transaction_query = """
+                INSERT INTO transactions (transaction_id, status)
+                VALUES ($1, $2)
+                """
+                await db.execute(transaction_query, str(transaction_id), "committing")
+                
+                # Process each table change
+                for table_change in request.table_changes:
+                    if not table_change.identifier:
+                        raise ValueError("Table identifier is required for transaction changes")
+                    
+                    namespace_levels = table_change.identifier.namespace.__root__
+                    table_name = table_change.identifier.name
+                    
+                    # Get namespace ID
+                    namespace_id = await TableService._get_namespace_id(namespace_levels)
+                    if namespace_id is None:
+                        raise ValueError(f"Namespace not found: {namespace_levels}")
+                    
+                    # Get table ID
+                    query = """
+                    SELECT id FROM tables
+                    WHERE namespace_id = $1 AND name = $2
+                    """
+                    table_record = await db.fetch_one(query, namespace_id, table_name)
+                    if not table_record:
+                        raise ValueError(f"Table not found: {namespace_levels}.{table_name}")
+                    
+                    table_id = table_record["id"]
+                    
+                    # Get full table record
+                    query = """
+                    SELECT * FROM tables WHERE id = $1
+                    """
+                    table_record = await db.fetch_one(query, table_id)
+                    
+                    # Check all requirements
+                    for requirement in table_change.requirements:
+                        if not await TableService._validate_requirement(table_id, table_record, requirement):
+                            requirement_type = getattr(requirement, "type", "Unknown")
+                            raise ValueError(f"Table requirement not met: {requirement_type}")
+                    
+                    # Apply all updates
+                    for update in table_change.updates:
+                        await TableService._apply_update(table_id, table_record, update.__root__)
+                        
+                        # Reload table record after each update
+                        table_record = await db.fetch_one(query, table_id)
+                
+                # Mark transaction as completed
+                completion_query = """
+                UPDATE transactions
+                SET status = $1, updated_at = NOW()
+                WHERE transaction_id = $2
+                """
+                await db.execute(completion_query, "completed", str(transaction_id))
+                
+                logger.info(f"Successfully committed transaction {transaction_id}")
+        
+        except ValueError:
+            # Re-raise ValueError
+            raise
+        except Exception as e:
+            logger.error(f"Error processing transaction: {str(e)}", exc_info=True)
+            raise
