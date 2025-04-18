@@ -1,0 +1,480 @@
+2025-04-17 21:29:19,062 - iceberg-catalog - INFO - [database.py:11] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-17 21:29:19,069 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-17 21:29:19,069 - iceberg-catalog - INFO - [database.py:16] - Connecting to database...
+2025-04-17 21:29:19,226 - iceberg-catalog - INFO - [database.py:20] - Successfully connected to database
+2025-04-17 21:29:19,226 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-17 21:29:26,575 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: None
+2025-04-17 21:29:26,576 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: default
+2025-04-17 21:29:26,580 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-17 21:30:06,508 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:30:06,509 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:30:06,512 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:30:06,513 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-17 21:30:06,514 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-17 21:35:25,466 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:35:25,467 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:35:25,512 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:35:25,512 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-17 21:35:25,515 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-17 21:52:32,205 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: None
+2025-04-17 21:52:32,207 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: default
+2025-04-17 21:52:32,279 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-17 21:52:37,918 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:52:37,919 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-17 21:52:37,923 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-17 21:52:41,675 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/test/
+2025-04-17 21:52:41,676 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/test/
+2025-04-17 21:52:41,679 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-17 21:52:46,233 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: invalid-warehouse
+2025-04-17 21:52:46,233 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: invalid-warehouse
+2025-04-17 21:52:46,236 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: invalid-warehouse
+2025-04-17 21:52:46,236 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-17 21:52:46,237 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 00:33:59,638 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 00:33:59,639 - iceberg-catalog - INFO - [database.py:29] - Disconnecting from database...
+2025-04-18 00:33:59,640 - iceberg-catalog - INFO - [database.py:33] - Database connections closed
+2025-04-18 00:33:59,641 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 00:50:11,718 - iceberg-catalog - INFO - [database.py:11] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 00:50:11,726 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 00:50:11,727 - iceberg-catalog - INFO - [database.py:16] - Connecting to database...
+2025-04-18 00:50:11,727 - iceberg-catalog - ERROR - [database.py:24] - Failed to connect to database: invalid DSN: scheme is expected to be either "postgresql" or "postgres", got 'postgresql+asyncpg'
+Traceback (most recent call last):
+  File "/code/app/database.py", line 19, in connect
+    self.pool = await asyncpg.create_pool(self.connection_string)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/pool.py", line 418, in _async__init__
+    await self._initialize()
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/pool.py", line 445, in _initialize
+    await first_ch.connect()
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/pool.py", line 132, in connect
+    self._con = await self._pool._get_new_connection()
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/pool.py", line 517, in _get_new_connection
+    con = await self._connect(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2421, in connect
+    return await connect_utils._connect(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 1041, in _connect
+    addrs, params, config = _parse_connect_arguments(**kwargs)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 749, in _parse_connect_arguments
+    addrs, params = _parse_connect_dsn_and_args(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 283, in _parse_connect_dsn_and_args
+    raise exceptions.ClientConfigurationError(
+asyncpg.exceptions._base.ClientConfigurationError: invalid DSN: scheme is expected to be either "postgresql" or "postgres", got 'postgresql+asyncpg'
+2025-04-18 00:54:13,224 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 00:54:13,231 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 00:54:13,231 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 00:54:13,393 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 00:54:13,393 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 00:54:19,441 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 00:54:19,443 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 00:54:19,453 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 00:54:19,453 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 00:55:53,189 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 00:55:53,196 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 00:55:53,196 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 00:55:53,358 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 00:55:53,359 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 00:55:59,310 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: None
+2025-04-18 00:55:59,311 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: default
+2025-04-18 00:55:59,322 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 00:56:07,565 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/dev/
+2025-04-18 00:56:07,566 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-18 00:56:07,568 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-18 00:56:07,568 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-18 00:56:07,569 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:05:43,521 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/dev/
+2025-04-18 01:05:43,525 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-18 01:05:43,592 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:05:47,410 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/test/
+2025-04-18 01:05:47,411 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/test/
+2025-04-18 01:05:47,412 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:05:50,853 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/test/as
+2025-04-18 01:05:50,855 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/test/as
+2025-04-18 01:05:50,857 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: s3://300289082521-my-warehouse/test/as
+2025-04-18 01:05:50,858 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-18 01:05:50,859 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:06:28,746 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 01:06:28,748 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:06:28,751 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:06:28,752 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 01:16:59,398 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:16:59,406 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 01:16:59,406 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:16:59,559 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:16:59,560 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 01:17:08,037 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/test/as
+2025-04-18 01:17:08,038 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/test/as
+2025-04-18 01:17:08,055 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: s3://300289082521-my-warehouse/test/as
+2025-04-18 01:17:08,055 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-18 01:17:08,057 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:17:11,928 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/test/
+2025-04-18 01:17:11,929 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/test/
+2025-04-18 01:17:11,931 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:20:39,018 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 01:20:39,021 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:20:39,038 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:20:39,038 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 01:20:39,219 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:20:39,226 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 01:20:39,227 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:20:39,442 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:20:39,443 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 01:21:09,023 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 01:21:09,026 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:21:09,098 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:21:09,099 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 01:21:09,368 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:21:09,376 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 01:21:09,377 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:21:09,544 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:21:09,544 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 01:21:55,442 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 01:21:55,444 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:21:55,454 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:21:55,454 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 01:21:55,638 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:21:55,646 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 01:21:55,646 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:21:55,809 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:21:55,810 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 01:22:51,410 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 01:22:51,412 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:22:51,438 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:22:51,438 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 01:22:51,636 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:22:51,656 - iceberg-catalog - INFO - [main.py:39] - Starting up application
+2025-04-18 01:22:51,656 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:22:51,814 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:22:51,814 - iceberg-catalog - INFO - [main.py:41] - Database connection established
+2025-04-18 01:23:06,931 - iceberg-catalog - INFO - [main.py:45] - Shutting down application
+2025-04-18 01:23:06,932 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:23:06,940 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:23:06,940 - iceberg-catalog - INFO - [main.py:47] - Database connection closed
+2025-04-18 01:23:07,111 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:23:07,128 - iceberg-catalog - INFO - [main.py:40] - Starting up application
+2025-04-18 01:23:07,129 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:23:07,281 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:23:07,281 - iceberg-catalog - INFO - [main.py:42] - Database connection established
+2025-04-18 01:23:33,691 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: ss, parent: None, page_token: None, page_size: None
+2025-04-18 01:23:33,692 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:23:33,697 - iceberg-catalog - ERROR - [database.py:74] - Database query error: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:23:33,699 - iceberg-catalog - ERROR - [namespace.py:118] - Error listing namespaces: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/services/namespace.py", line 95, in list_namespaces
+    namespace_records = await db.fetch_all(query, *params)
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:23:33,699 - iceberg-catalog - ERROR - [namespaces.py:74] - Error listing namespaces: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/api/namespaces.py", line 44, in list_namespaces
+    return await NamespaceService.list_namespaces(parent, page_token, page_size)
+  File "/code/app/services/namespace.py", line 95, in list_namespaces
+    namespace_records = await db.fetch_all(query, *params)
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:24:12,510 - iceberg-catalog - INFO - [namespaces.py:108] - Create namespace request. prefix: dev, namespace: ['namespace1']
+2025-04-18 01:24:12,511 - iceberg-catalog - INFO - [namespace.py:126] - Creating namespace: ['namespace1']
+2025-04-18 01:24:12,512 - iceberg-catalog - INFO - [namespace.py:195] - Checking if namespace exists: ['namespace1']
+2025-04-18 01:24:12,513 - iceberg-catalog - ERROR - [database.py:58] - Database query error: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/database.py", line 52, in fetch_one
+    record = await conn.fetchrow(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 748, in fetchrow
+    data = await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:24:12,514 - iceberg-catalog - ERROR - [namespace.py:205] - Error checking namespace existence: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/services/namespace.py", line 202, in namespace_exists
+    result = await db.fetch_one(query, namespace_levels)
+  File "/code/app/database.py", line 52, in fetch_one
+    record = await conn.fetchrow(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 748, in fetchrow
+    data = await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:24:12,514 - iceberg-catalog - ERROR - [namespaces.py:139] - Error creating namespace: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/api/namespaces.py", line 109, in create_namespace
+    return await NamespaceService.create_namespace(request)
+  File "/code/app/services/namespace.py", line 129, in create_namespace
+    namespace_exists = await NamespaceService.namespace_exists(request.namespace.__root__)
+  File "/code/app/services/namespace.py", line 202, in namespace_exists
+    result = await db.fetch_one(query, namespace_levels)
+  File "/code/app/database.py", line 52, in fetch_one
+    record = await conn.fetchrow(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 748, in fetchrow
+    data = await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:24:27,170 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: ss, parent: None, page_token: None, page_size: None
+2025-04-18 01:24:27,171 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:24:27,174 - iceberg-catalog - ERROR - [database.py:74] - Database query error: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:24:27,175 - iceberg-catalog - ERROR - [namespace.py:118] - Error listing namespaces: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/services/namespace.py", line 95, in list_namespaces
+    namespace_records = await db.fetch_all(query, *params)
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:24:27,175 - iceberg-catalog - ERROR - [namespaces.py:74] - Error listing namespaces: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/api/namespaces.py", line 44, in list_namespaces
+    return await NamespaceService.list_namespaces(parent, page_token, page_size)
+  File "/code/app/services/namespace.py", line 95, in list_namespaces
+    namespace_records = await db.fetch_all(query, *params)
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:25:13,450 - iceberg-catalog - INFO - [main.py:46] - Shutting down application
+2025-04-18 01:25:13,453 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:25:13,460 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:25:13,461 - iceberg-catalog - INFO - [main.py:48] - Database connection closed
+2025-04-18 01:25:27,548 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:25:27,577 - iceberg-catalog - INFO - [main.py:40] - Starting up application
+2025-04-18 01:25:27,578 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:25:27,740 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:25:27,740 - iceberg-catalog - INFO - [main.py:42] - Database connection established
+2025-04-18 01:25:34,380 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: ss, parent: None, page_token: None, page_size: None
+2025-04-18 01:25:34,380 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:25:34,385 - iceberg-catalog - ERROR - [database.py:74] - Database query error: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:25:34,387 - iceberg-catalog - ERROR - [namespace.py:118] - Error listing namespaces: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/services/namespace.py", line 95, in list_namespaces
+    namespace_records = await db.fetch_all(query, *params)
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:25:34,387 - iceberg-catalog - ERROR - [namespaces.py:74] - Error listing namespaces: relation "namespaces" does not exist
+Traceback (most recent call last):
+  File "/code/app/api/namespaces.py", line 44, in list_namespaces
+    return await NamespaceService.list_namespaces(parent, page_token, page_size)
+  File "/code/app/services/namespace.py", line 95, in list_namespaces
+    namespace_records = await db.fetch_all(query, *params)
+  File "/code/app/database.py", line 70, in fetch_all
+    records = await conn.fetch(query, *args)
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 690, in fetch
+    return await self._execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1864, in _execute
+    result, _ = await self.__execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 1961, in __execute
+    result, stmt = await self._do_execute(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 2004, in _do_execute
+    stmt = await self._get_statement(
+  File "/usr/local/lib/python3.10/site-packages/asyncpg/connection.py", line 432, in _get_statement
+    statement = await self._protocol.prepare(
+  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+asyncpg.exceptions.UndefinedTableError: relation "namespaces" does not exist
+2025-04-18 01:26:31,597 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: ss, parent: None, page_token: None, page_size: None
+2025-04-18 01:26:31,599 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:26:42,994 - iceberg-catalog - INFO - [namespaces.py:108] - Create namespace request. prefix: dev, namespace: ['namespace1']
+2025-04-18 01:26:42,995 - iceberg-catalog - INFO - [namespace.py:126] - Creating namespace: ['namespace1']
+2025-04-18 01:26:42,995 - iceberg-catalog - INFO - [namespace.py:195] - Checking if namespace exists: ['namespace1']
+2025-04-18 01:26:52,560 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: dev, parent: None, page_token: None, page_size: None
+2025-04-18 01:26:52,561 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:27:06,909 - iceberg-catalog - INFO - [namespaces.py:171] - Load namespace metadata request. prefix: dev, namespace: namespace1
+2025-04-18 01:27:06,911 - iceberg-catalog - INFO - [namespace.py:160] - Getting namespace metadata: ['namespace1']
+2025-04-18 01:27:18,557 - iceberg-catalog - INFO - [namespaces.py:236] - Check namespace exists request. prefix: dev, namespace: namespace1
+2025-04-18 01:27:18,558 - iceberg-catalog - INFO - [namespace.py:195] - Checking if namespace exists: ['namespace1']
+2025-04-18 01:27:21,779 - iceberg-catalog - INFO - [namespaces.py:236] - Check namespace exists request. prefix: dev, namespace: namespace11
+2025-04-18 01:27:21,782 - iceberg-catalog - INFO - [namespace.py:195] - Checking if namespace exists: ['namespace11']
+2025-04-18 01:27:21,783 - iceberg-catalog - WARNING - [namespaces.py:241] - Namespace not found: namespace11
+2025-04-18 01:27:56,890 - iceberg-catalog - INFO - [namespaces.py:365] - Update namespace properties request. prefix: dev, namespace: namespace1
+2025-04-18 01:27:56,892 - iceberg-catalog - INFO - [namespace.py:259] - Updating namespace properties: ['namespace1']
+2025-04-18 01:27:56,892 - iceberg-catalog - INFO - [namespace.py:195] - Checking if namespace exists: ['namespace1']
+2025-04-18 01:28:02,955 - iceberg-catalog - INFO - [namespaces.py:171] - Load namespace metadata request. prefix: dev, namespace: namespace1
+2025-04-18 01:28:02,956 - iceberg-catalog - INFO - [namespace.py:160] - Getting namespace metadata: ['namespace1']
+2025-04-18 01:28:43,868 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: devs, parent: None, page_token: None, page_size: None
+2025-04-18 01:28:43,870 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:28:52,576 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix: ss, parent: None, page_token: None, page_size: None
+2025-04-18 01:28:52,585 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:29:07,316 - iceberg-catalog - INFO - [namespaces.py:43] - List namespaces request. prefix:  , parent: None, page_token: None, page_size: None
+2025-04-18 01:29:07,317 - iceberg-catalog - INFO - [namespace.py:51] - Listing namespaces. Parent: None, Page token: None, Page size: None
+2025-04-18 01:44:23,170 - iceberg-catalog - INFO - [main.py:46] - Shutting down application
+2025-04-18 01:44:23,172 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:44:23,173 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:44:23,173 - iceberg-catalog - INFO - [main.py:48] - Database connection closed
+2025-04-18 01:44:23,398 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:44:23,415 - iceberg-catalog - INFO - [main.py:40] - Starting up application
+2025-04-18 01:44:23,415 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:44:23,570 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:44:23,570 - iceberg-catalog - INFO - [main.py:42] - Database connection established
+2025-04-18 01:44:52,911 - iceberg-catalog - INFO - [main.py:46] - Shutting down application
+2025-04-18 01:44:52,915 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:44:52,932 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:44:52,933 - iceberg-catalog - INFO - [main.py:48] - Database connection closed
+2025-04-18 01:44:53,133 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:45:19,966 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:45:19,985 - iceberg-catalog - INFO - [main.py:44] - Starting up application
+2025-04-18 01:45:19,985 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:45:20,150 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:45:20,151 - iceberg-catalog - INFO - [main.py:46] - Database connection established
+2025-04-18 01:45:49,765 - iceberg-catalog - INFO - [main.py:50] - Shutting down application
+2025-04-18 01:45:49,767 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:45:49,783 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:45:49,784 - iceberg-catalog - INFO - [main.py:52] - Database connection closed
+2025-04-18 01:45:50,017 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:45:50,035 - iceberg-catalog - INFO - [main.py:44] - Starting up application
+2025-04-18 01:45:50,036 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:45:50,228 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:45:50,228 - iceberg-catalog - INFO - [main.py:46] - Database connection established
+2025-04-18 01:51:09,779 - iceberg-catalog - INFO - [main.py:50] - Shutting down application
+2025-04-18 01:51:09,783 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:51:09,785 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:51:09,785 - iceberg-catalog - INFO - [main.py:52] - Database connection closed
+2025-04-18 01:51:09,975 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:51:09,993 - iceberg-catalog - INFO - [main.py:44] - Starting up application
+2025-04-18 01:51:09,994 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:51:10,150 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:51:10,150 - iceberg-catalog - INFO - [main.py:46] - Database connection established
+2025-04-18 01:51:39,311 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: None
+2025-04-18 01:51:39,312 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: default
+2025-04-18 01:51:39,319 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:51:44,913 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/dev/
+2025-04-18 01:51:44,914 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/dev/
+2025-04-18 01:51:44,915 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:51:47,975 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/ee/
+2025-04-18 01:51:47,976 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/ee/
+2025-04-18 01:51:47,977 - iceberg-catalog - INFO - [config.py:50] - No configuration found for catalog: s3://300289082521-my-warehouse/ee/
+2025-04-18 01:51:47,977 - iceberg-catalog - INFO - [config.py:54] - Trying to fetch default configuration
+2025-04-18 01:51:47,979 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:51:50,892 - iceberg-catalog - INFO - [config.py:30] - Received request for configuration. Warehouse: s3://300289082521-my-warehouse/test/
+2025-04-18 01:51:50,893 - iceberg-catalog - INFO - [config.py:26] - Fetching configuration for catalog: s3://300289082521-my-warehouse/test/
+2025-04-18 01:51:50,894 - iceberg-catalog - INFO - [config.py:32] - Successfully retrieved configuration
+2025-04-18 01:52:11,325 - iceberg-catalog - INFO - [main.py:50] - Shutting down application
+2025-04-18 01:52:11,327 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:52:11,336 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:52:11,336 - iceberg-catalog - INFO - [main.py:52] - Database connection closed
+2025-04-18 01:57:21,486 - iceberg-catalog - INFO - [database.py:17] - Initializing database with connection string: postgres:5432/iceberg_catalog
+2025-04-18 01:57:21,504 - iceberg-catalog - INFO - [main.py:44] - Starting up application
+2025-04-18 01:57:21,504 - iceberg-catalog - INFO - [database.py:22] - Connecting to database...
+2025-04-18 01:57:21,672 - iceberg-catalog - INFO - [database.py:26] - Successfully connected to database
+2025-04-18 01:57:21,673 - iceberg-catalog - INFO - [main.py:46] - Database connection established
+2025-04-18 01:59:21,070 - iceberg-catalog - INFO - [main.py:50] - Shutting down application
+2025-04-18 01:59:21,072 - iceberg-catalog - INFO - [database.py:35] - Disconnecting from database...
+2025-04-18 01:59:21,080 - iceberg-catalog - INFO - [database.py:39] - Database connections closed
+2025-04-18 01:59:21,080 - iceberg-catalog - INFO - [main.py:52] - Database connection closed
