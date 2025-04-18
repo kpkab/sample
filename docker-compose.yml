@@ -1,0 +1,40 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://iceberg:password@postgres:5432/iceberg_catalog
+      - ENVIRONMENT=development
+      - LOG_FILE_PATH=/logs/iceberg-catalog.log
+    depends_on:
+      - postgres
+    volumes:
+      - ./app:/code/app
+      - ./logs:/logs  # Mount logs directory
+    networks:
+      - iceberg-network
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=iceberg
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=iceberg_catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - iceberg-network
+
+networks:
+  iceberg-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

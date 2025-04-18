@@ -1,0 +1,18 @@
+# Environment files
+.env
+
+# Python cache files
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+
+# Python init files in subfolders
+*/__init__.py
+*/*/__init__.py
+
+# Logs directory
+logs/
+
+project_structure.md
+
+requirements.txt
