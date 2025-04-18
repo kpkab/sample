@@ -7,7 +7,13 @@ from app.utils.logger import logger
 
 class Database:
     def __init__(self, connection_string: Optional[str] = None):
-        self.connection_string = connection_string or os.getenv("DATABASE_URL", "postgresql://iceberg:password@postgres:5432/iceberg_catalog")
+        connection_str = connection_string or os.getenv("DATABASE_URL", "postgresql://iceberg:password@postgres:5432/iceberg_catalog")
+        
+        # Make sure we're using the correct scheme for asyncpg
+        if connection_str.startswith('postgresql+asyncpg'):
+            connection_str = connection_str.replace('postgresql+asyncpg', 'postgresql')
+        
+        self.connection_string = connection_str
         logger.info(f"Initializing database with connection string: {self.connection_string.split('@')[1]}")  # Don't log credentials
         self.pool = None
 

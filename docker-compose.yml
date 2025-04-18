@@ -1,3 +1,4 @@
+# docker-compose.yml
 version: '3.8'
 
 services:
@@ -6,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://iceberg:password@postgres:5432/iceberg_catalog
+      - DATABASE_URL=postgresql://iceberg:password@postgres:5432/iceberg_catalog
       - ENVIRONMENT=development
       - LOG_FILE_PATH=/logs/iceberg-catalog.log
     depends_on:
@@ -14,7 +15,7 @@ services:
         condition: service_healthy
     volumes:
       - ./app:/code/app
-      - ./logs:/logs
+      - ./logs:/logs  # Mount logs directory
     networks:
       - iceberg-network
 
@@ -27,19 +28,16 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data  # Host path for persistence
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - iceberg-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U iceberg"]
+      test: ["CMD-SHELL", "pg_isready -U iceberg -d iceberg_catalog"]
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - iceberg-network
 
 networks:
   iceberg-network:
     driver: bridge
-
-volumes:
-  postgres-data:

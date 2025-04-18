@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # Application settings
     API_V1_PREFIX: str = "/v1"
-    DEFAULT_WAREHOUSE: str = "s3://iceberg-warehouse/"
+    DEFAULT_WAREHOUSE: str = "s3://300289082521-my-warehouse/dev/"
     
     # JWT token settings (optional, for OAuth)
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "your-secret-key")
