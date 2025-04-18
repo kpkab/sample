@@ -189,3 +189,17 @@ class ReportMetricsRequest(BaseModel):
 class RenameTableRequest(BaseModel):
     source: TableIdentifier
     destination: TableIdentifier
+
+
+class TableCredential(BaseModel):
+    config: Dict[str, str] = Field(..., description="Credential configuration")
+
+class CreateTableRequest(BaseModel):
+    name: str
+    location: Optional[str] = None
+    schema_: Schema = Field(..., alias='schema')
+    partition_spec: Optional[PartitionSpec] = Field(None, alias='partition-spec')
+    write_order: Optional[SortOrder] = Field(None, alias='write-order')
+    stage_create: Optional[bool] = None
+    properties: Optional[Dict[str, str]] = None
+    credentials: Optional[TableCredential] = None  # Add this field

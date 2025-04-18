@@ -7,7 +7,7 @@ import traceback
 import os
 
 from app.database import db
-from app.api import config, namespaces, tables
+from app.api import config, namespaces, tables, credentials
 from app.utils.logger import logger
 # Import other API routers here as needed
 
@@ -34,6 +34,7 @@ app.add_middleware(PrefixMiddleware)
 app.include_router(config.router, tags=["Configuration API"])
 app.include_router(namespaces.router, tags=["Namespace API"])
 app.include_router(tables.router, tags=["Table API"])
+app.include_router(credentials.router, tags=["Credentials API"])
 # Include other routers here
 
 # Enable/disable debug based on environment

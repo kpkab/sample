@@ -12,7 +12,7 @@ from app.services.namespace import NamespaceService
 from app.services.table import TableService
 from app.utils.logger import logger
 from fastapi.responses import Response
-
+import json
 router = APIRouter()
 
 @router.get("/v1/{prefix}/namespaces/{namespace}/tables",
@@ -195,17 +195,54 @@ async def load_table(
     try:
         logger.info(f"Load table request. prefix: {prefix}, namespace: {namespace}, table: {table}, snapshots: {snapshots}")
         namespace_levels = NamespaceService.parse_namespace(namespace)
-        result = await TableService.load_table(namespace_levels, table, snapshots, x_iceberg_access_delegation, if_none_match)
         
-        # Handle 304 Not Modified
-        if result is None:
-            return Response(status_code=304)
+        # We'll replace the standard call with our own implementation to handle 304 properly
+        table_id, etag, table_metadata = await TableService.get_table_basic_info(namespace_levels, table, if_none_match)
         
-        table_result, etag = result
+        # Always load credentials regardless of 304 status
+        config = await TableService.get_table_config(table_id)
+        credentials = await TableService.get_storage_credentials(table_id)
         
-        # Return with ETag header
+        # If get_table_basic_info returned None for table_metadata, we need to return 304
+        if table_metadata is None:
+            # Return 304 with credentials in body
+            logger.info(f"Table {namespace_levels}.{table} not modified, returning 304 with credentials")
+            
+            # Get the last successful response and add credentials
+            cached_result = await TableService.get_cached_table_metadata(namespace_levels, table)
+            if cached_result:
+                cached_result["config"] = config
+                # cached_result["storage-credentials"] = [c.dict(by_alias=True) for c in credentials]
+                # cached_result["storage-credentials"] = [
+                #     json.loads(StorageCredential(**cred).json()) 
+                #     for cred in credentials
+                # ]
+                # Fix this line in the tables.py route handler
+                cached_result["storage-credentials"] = [c.dict(by_alias=True) for c in credentials] if credentials else None
+                
+                return Response(
+                    content=json.dumps(cached_result),
+                    media_type="application/json",
+                    status_code=200,
+                    headers={"ETag": etag}
+                )
+            else:
+                # No cached response, return standard 304
+                return Response(status_code=304)
+        
+        # If we're here, we need to build the full response
+        result = await TableService.build_table_response(table_id, table_metadata, snapshots)
+        
+        # Add config and credentials
+        result_dict = result.dict(by_alias=True)
+        result_dict["config"] = config
+        result_dict["storage-credentials"] = [c.dict(by_alias=True) for c in credentials]
+        
+        # Cache this response for future 304 requests
+        await TableService.cache_table_metadata(namespace_levels, table, result_dict)
+        
         return Response(
-            content=table_result.json(by_alias=True),
+            content=json.dumps(result_dict),
             media_type="application/json",
             headers={"ETag": etag}
         )

@@ -25,14 +25,6 @@ CREATE TABLE IF NOT EXISTS namespaces (
     UNIQUE (levels)
 );
 
--- Tables reference (needed for DELETE check and other operations)
-CREATE TABLE IF NOT EXISTS tables (
-    id SERIAL PRIMARY KEY,
-    namespace_id INTEGER REFERENCES namespaces(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    -- Other fields would be here
-    UNIQUE (namespace_id, name)
-);
 
 -- Views reference (needed for DELETE check)
 CREATE TABLE IF NOT EXISTS views (
@@ -155,13 +147,15 @@ CREATE TABLE IF NOT EXISTS partition_statistics (
 );
 
 -- Storage credentials
-CREATE TABLE IF NOT EXISTS storage_credentials (
+CREATE TABLE storage_credentials (
     id SERIAL PRIMARY KEY,
-    prefix TEXT NOT NULL,
+    prefix TEXT NOT NULL,  -- dev, test, hr, marketing, sales
+    warehouse TEXT NOT NULL,  -- s3://300289082521-my-warehouse/dev/, etc.
     config JSONB NOT NULL,
     table_id INTEGER REFERENCES tables(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (prefix, table_id)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (prefix, warehouse, table_id)
 );
 
 -- Operation metrics

@@ -76,6 +76,63 @@ Registering a table
 Table scan planning operations
 Committing transactions
 
+-----
+For Testing
+For testing, you can insert global credentials that apply to all your tables:
+sqlINSERT INTO storage_credentials (prefix, config, table_id) VALUES 
+('s3://300289082521-my-warehouse/', 
+ '{"region": "us-east-1", "access-key-id": "YOUR_ACCESS_KEY", "secret-access-key": "YOUR_SECRET_KEY"}',
+ NULL);
 
+ For Production
+For production, you have several better options:
 
-Would you like me to provide implementations for any of these missing components?
+Instance Profile Credentials:
+sqlINSERT INTO storage_credentials (prefix, config, table_id) VALUES 
+('s3://300289082521-my-warehouse/', 
+ '{"region": "us-east-1", "use-instance-credentials": "true"}',
+ NULL);
+
+Temporary Credentials via STS:
+sqlINSERT INTO storage_credentials (prefix, config, table_id) VALUES 
+('s3://300289082521-my-warehouse/', 
+ '{"region": "us-east-1", "sts-role-arn": "arn:aws:iam::account:role/role-name", "duration-seconds": "3600"}',
+ NULL);
+
+ Usage Examples
+1. Adding Global Credentials via API
+bashcurl -X 'POST' \
+  'http://0.0.0.0:8000/v1/dev/credentials' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "prefix": "dev",
+    "warehouse": "s3://300289082521-my-warehouse/dev/",
+    "config": {
+      "region": "us-east-1",
+      "use-instance-credentials": "true"
+    }
+  }'
+2. Creating a Table with Credentials
+
+curl -X 'POST' \
+  'http://0.0.0.0:8000/v1/dev/namespaces/namespace1/tables' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "customer_data1",
+    "location": "s3://300289082521-my-warehouse/dev/customer_data1",
+    "schema": {
+      "type": "struct",
+      "fields": [
+        { "id": 1, "name": "id", "type": "long", "required": true },
+        { "id": 2, "name": "name", "type": "string", "required": true }
+      ]
+    },
+    "credentials": {
+      "config": {
+        "region": "us-east-1",
+        "use-instance-credentials": "true"
+      }
+    }
+  }'

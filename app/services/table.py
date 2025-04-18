@@ -2,7 +2,7 @@
 import json
 import time
 import uuid
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union, Any, Tuple
 from app.database import db
 from app.models.namespace import Namespace
 from app.models.table import (
@@ -14,7 +14,7 @@ from app.models.table import (
 from app.services.namespace import NamespaceService
 from app.utils.logger import logger
 import base64
-
+from app.services.credential import CredentialService
 class TableService:
     
     @staticmethod
@@ -268,27 +268,70 @@ class TableService:
                 """
                 await db.execute(order_insert_query, table_id, sort_order_id, json.dumps(sort_order_json))
                 logger.debug(f"Added sort order {sort_order_id} to table {table_id}")
+
+                # Handle credentials if provided
+                if hasattr(request, 'credentials') and request.credentials:
+                    # Extract prefix from namespace or use default
+                    prefix = namespace_levels[0] if namespace_levels else 'default'
+                    
+                    # Extract warehouse location from the table location
+                    # Get the base warehouse path (e.g., s3://bucket/prefix/)
+                    warehouse_parts = location.split('/')
+                    warehouse = '/'.join(warehouse_parts[:3]) + '/'  # e.g., s3://bucket/
+                    
+                    # Check if credentials exist for this warehouse
+                    existing_creds = await CredentialService.get_credentials_for_location(location)
+                    
+                    if not existing_creds:
+                        # Store new credentials
+                        cred_id = await CredentialService.upsert_credentials(
+                            prefix,
+                            warehouse,
+                            request.credentials.config,
+                            None  # Store as global credentials, not table-specific
+                        )
+                        logger.debug(f"Added credentials with ID: {cred_id} for warehouse: {warehouse}")
+                
                 
                 # Prepare response metadata
-                table_metadata = TableMetadata(
-                    format_version=format_version,
-                    table_uuid=table_uuid,
-                    location=location,
-                    last_updated_ms=now_ms,
-                    properties=properties,
-                    schemas=[request.schema_],
-                    current_schema_id=schema_id,
-                    last_column_id=last_column_id,
-                    partition_specs=[request.partition_spec] if request.partition_spec else [PartitionSpec(spec_id=0, fields=[])],
-                    default_spec_id=spec_id,
-                    last_partition_id=last_partition_id,
-                    sort_orders=[request.write_order] if request.write_order else [SortOrder(order_id=0, fields=[])],
-                    default_sort_order_id=sort_order_id,
-                    snapshots=[],
-                    refs={},
-                    current_snapshot_id=None,
-                    last_sequence_number=0
-                )
+                # table_metadata = TableMetadata(
+                #     format_version=format_version,
+                #     table_uuid=table_uuid,
+                #     location=location,
+                #     last_updated_ms=now_ms,
+                #     properties=properties,
+                #     schemas=[request.schema_],
+                #     current_schema_id=schema_id,
+                #     last_column_id=last_column_id,
+                #     partition_specs=[request.partition_spec] if request.partition_spec else [PartitionSpec(spec_id=0, fields=[])],
+                #     default_spec_id=spec_id,
+                #     last_partition_id=last_partition_id,
+                #     sort_orders=[request.write_order] if request.write_order else [SortOrder(**{"order-id": 0, "fields": []})],
+                #     default_sort_order_id=sort_order_id,
+                #     snapshots=[],
+                #     refs={},
+                #     current_snapshot_id=None,
+                #     last_sequence_number=0
+                # )
+                table_metadata = TableMetadata.parse_obj({
+                    "format-version": format_version,
+                    "table-uuid": table_uuid,
+                    "location": location,
+                    "last-updated-ms": now_ms,
+                    "properties": properties,
+                    "schemas": [request.schema_],
+                    "current-schema-id": schema_id,
+                    "last-column-id": last_column_id,
+                    "partition-specs": [request.partition_spec] if request.partition_spec else [PartitionSpec.parse_obj({"spec-id": 0, "fields": []})],
+                    "default-spec-id": spec_id,
+                    "last-partition-id": last_partition_id,
+                    "sort-orders": [request.write_order] if request.write_order else [SortOrder.parse_obj({"order-id": 0, "fields": []})],
+                    "default-sort-order-id": sort_order_id,
+                    "snapshots": [],
+                    "refs": {},
+                    "current-snapshot-id": None,
+                    "last-sequence-number": 0
+                })
                 
                 # Generate metadata location
                 metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
@@ -319,33 +362,639 @@ class TableService:
     @staticmethod
     async def get_table_config(table_id: int) -> Dict[str, str]:
         """
-        Get table-specific configuration.
+        Get table-specific configuration from credentials.
         """
-        # In a real implementation, this would fetch config from a database
-        # For now, return some default configuration
+        logger.debug(f"Getting table config for table ID: {table_id}")
+        
+        # Get table location
+        location_query = """
+        SELECT location FROM tables WHERE id = $1
+        """
+        location_record = await db.fetch_one(location_query, table_id)
+        
+        if not location_record:
+            logger.warning(f"No table found with ID: {table_id}")
+            return {}
+            
+        location = location_record["location"]
+        logger.debug(f"Table location: {location}")
+        
+        # Get all credentials
+        all_creds_query = """
+        SELECT prefix, warehouse, config FROM storage_credentials
+        WHERE table_id IS NULL
+        """
+        all_creds = await db.fetch_all(all_creds_query)
+        logger.debug(f"Found {len(all_creds)} total credentials to check")
+        
+        # Find matching credential by direct string comparison
+        matched_cred = None
+        for cred in all_creds:
+            warehouse = cred["warehouse"]
+            logger.debug(f"Checking if location '{location}' starts with warehouse '{warehouse}'")
+            if location.startswith(warehouse):
+                logger.debug(f"MATCH FOUND: '{location}' starts with '{warehouse}'")
+                matched_cred = cred
+                break
+        
+        if matched_cred:
+            # Convert credential to table config
+            config = matched_cred["config"]
+            logger.debug(f"Credential config --->: {config}")
+            if isinstance(config, str):
+                config = json.loads(config)
+                logger.debug(f"Credential config: {config}")
+            
+            logger.info(f"Using credential with prefix={matched_cred['prefix']}, warehouse={matched_cred['warehouse']}")
+            
+            # Convert the credential format to table config format
+            table_config = {}
+            
+            # Map credential keys to config keys
+            if "region" in config:
+                table_config["client.region"] = config["region"]
+            
+            if "access-key-id" in config:
+                table_config["s3.access-key-id"] = config["access-key-id"]
+            
+            if "secret-access-key" in config:
+                table_config["s3.secret-access-key"] = config["secret-access-key"]
+            
+            if "session-token" in config:
+                table_config["s3.session-token"] = config["session-token"]
+            
+            if "use-instance-credentials" in config and config["use-instance-credentials"] == "true":
+                table_config["s3.use-instance-credentials"] = "true"
+            
+            logger.debug(f"Generated table config: {table_config}")
+            return table_config
+        
+        # Fallback to defaults only when needed
+        logger.warning(f"No matching credentials found for {location}, using defaults")
         return {
-            "client.region": "us-west-2",
-            "s3.access-key-id": "XXX", 
-            "s3.secret-access-key": "XXX"
+            "client.region": "us-east-1", 
+            "s3.use-instance-credentials": "true"
         }
+    
+    @staticmethod
+    async def get_table_basic_info(
+        namespace_levels: List[str],
+        table_name: str,
+        if_none_match: Optional[str] = None
+    ) -> Tuple[int, str, Optional[Dict]]:
+        """Get basic table info and check if it matches the ETag."""
+        query = """
+        SELECT t.id, t.table_uuid, t.last_updated_ms, t.format_version
+        FROM tables t
+        JOIN namespaces n ON t.namespace_id = n.id
+        WHERE n.levels = $1 AND t.name = $2
+        """
+        
+        table_record = await db.fetch_one(query, namespace_levels, table_name)
+        
+        if not table_record:
+            logger.warning(f"Table not found: {namespace_levels}.{table_name}")
+            raise ValueError(f"Table not found: {namespace_levels}.{table_name}")
+        
+        table_id = table_record["id"]
+        table_uuid = str(table_record["table_uuid"])
+        last_updated_ms = table_record["last_updated_ms"]
+        
+        # Generate ETag
+        etag = f'"{table_uuid}-{last_updated_ms}"'
+        
+        # Check If-None-Match header
+        if if_none_match and if_none_match == etag:
+            logger.info(f"Table {namespace_levels}.{table_name} not modified, returning 304")
+            return table_id, etag, None
+        
+        # Return basic table metadata
+        return table_id, etag, {
+            "format-version": table_record["format_version"],
+            "table-uuid": table_uuid,
+        }
+    
+    # Simple in-memory cache for table metadata to support 304 responses
+    _table_metadata_cache = {}
+
+    @staticmethod
+    async def cache_table_metadata(namespace_levels: List[str], table_name: str, metadata: Dict) -> None:
+        """Cache table metadata for future 304 responses."""
+        cache_key = f"{'.'.join(namespace_levels)}.{table_name}"
+        TableService._table_metadata_cache[cache_key] = metadata
+
+    @staticmethod
+    async def get_cached_table_metadata(namespace_levels: List[str], table_name: str) -> Optional[Dict]:
+        """Get cached table metadata."""
+        cache_key = f"{'.'.join(namespace_levels)}.{table_name}"
+        return TableService._table_metadata_cache.get(cache_key)
+    
+    # @staticmethod
+    # async def build_table_response(table_id: int, basic_metadata: Dict, snapshots: Optional[str] = None) -> LoadTableResult:
+    #     """Build the full table response including all metadata."""
+    #     # Fetch the remaining table details
+    #     query = """
+    #     SELECT t.location, t.current_snapshot_id, t.last_sequence_number,
+    #         t.last_column_id, t.schema_id, t.current_schema_id,
+    #         t.default_spec_id, t.last_partition_id, t.default_sort_order_id,
+    #         t.properties, t.row_lineage, t.next_row_id, t.last_updated_ms
+    #     FROM tables t
+    #     WHERE t.id = $1
+    #     """
+        
+    #     table_record = await db.fetch_one(query, table_id)
+        
+    #     # Fetch schemas
+    #     schemas_query = """
+    #     SELECT schema_id, schema_json FROM schemas WHERE table_id = $1
+    #     """
+    #     schema_records = await db.fetch_all(schemas_query, table_id)
+    #     schemas = []
+        
+    #     for record in schema_records:
+    #         schema_json = record["schema_json"]
+    #         if isinstance(schema_json, str):
+    #             schema_json = json.loads(schema_json)
+    #         schema = Schema.parse_obj(schema_json)
+    #         schemas.append(schema)
+        
+    #     # Fetch partition specs
+    #     specs_query = """
+    #     SELECT spec_id, spec_json FROM partition_specs WHERE table_id = $1
+    #     """
+    #     spec_records = await db.fetch_all(specs_query, table_id)
+    #     partition_specs = []
+        
+    #     for record in spec_records:
+    #         spec_json = record["spec_json"]
+    #         if isinstance(spec_json, str):
+    #             spec_json = json.loads(spec_json)
+    #         spec = PartitionSpec.parse_obj(spec_json)
+    #         partition_specs.append(spec)
+        
+    #     # Fetch sort orders
+    #     orders_query = """
+    #     SELECT order_id, order_json FROM sort_orders WHERE table_id = $1
+    #     """
+    #     order_records = await db.fetch_all(orders_query, table_id)
+    #     sort_orders = []
+        
+    #     for record in order_records:
+    #         order_json = record["order_json"]
+    #         if isinstance(order_json, str):
+    #             order_json = json.loads(order_json)
+    #         order = SortOrder.parse_obj(order_json)
+    #         sort_orders.append(order)
+        
+    #     # Fetch snapshots
+    #     snapshots_query = """
+    #     SELECT snapshot_id, parent_snapshot_id, sequence_number, timestamp_ms,
+    #         manifest_list, summary, schema_id
+    #     FROM snapshots
+    #     WHERE table_id = $1
+    #     """
+        
+    #     # Add filtering based on snapshots parameter
+    #     if snapshots == "refs":
+    #         snapshots_query += """
+    #         AND snapshot_id IN (SELECT snapshot_id FROM snapshot_refs WHERE table_id = $1)
+    #         """
+        
+    #     snapshot_records = await db.fetch_all(snapshots_query, table_id)
+    #     snapshots_list = []
+        
+    #     for record in snapshot_records:
+    #         summary_json = record["summary"]
+    #         if isinstance(summary_json, str):
+    #             summary_json = json.loads(summary_json)
+            
+    #         snapshot = Snapshot(
+    #             snapshot_id=record["snapshot_id"],
+    #             parent_snapshot_id=record["parent_snapshot_id"],
+    #             sequence_number=record["sequence_number"],
+    #             timestamp_ms=record["timestamp_ms"],
+    #             manifest_list=record["manifest_list"],
+    #             summary=Summary.parse_obj(summary_json),
+    #             schema_id=record["schema_id"]
+    #         )
+    #         snapshots_list.append(snapshot)
+        
+    #     # Fetch snapshot references
+    #     refs_query = """
+    #     SELECT name, snapshot_id, type, min_snapshots_to_keep,
+    #         max_snapshot_age_ms, max_ref_age_ms
+    #     FROM snapshot_refs
+    #     WHERE table_id = $1
+    #     """
+    #     ref_records = await db.fetch_all(refs_query, table_id)
+    #     refs = {}
+        
+    #     for record in ref_records:
+    #         ref = {
+    #             "type": record["type"],
+    #             "snapshot-id": record["snapshot_id"],
+    #         }
+            
+    #         if record["min_snapshots_to_keep"] is not None:
+    #             ref["min-snapshots-to-keep"] = record["min_snapshots_to_keep"]
+            
+    #         if record["max_snapshot_age_ms"] is not None:
+    #             ref["max-snapshot-age-ms"] = record["max_snapshot_age_ms"]
+                
+    #         if record["max_ref_age_ms"] is not None:
+    #             ref["max-ref-age-ms"] = record["max_ref_age_ms"]
+            
+    #         refs[record["name"]] = ref
+        
+    #     # Try to fetch statistics if available
+    #     statistics_list = []
+    #     partition_statistics_list = []
+        
+    #     try:
+    #         # Fetch table statistics
+    #         statistics_query = """
+    #         SELECT snapshot_id, statistics_path, file_size_in_bytes,
+    #             file_footer_size_in_bytes, blob_metadata
+    #         FROM table_statistics
+    #         WHERE table_id = $1
+    #         """
+    #         statistics_records = await db.fetch_all(statistics_query, table_id)
+            
+    #         for record in statistics_records:
+    #             blob_metadata_json = record["blob_metadata"]
+    #             if isinstance(blob_metadata_json, str):
+    #                 blob_metadata_json = json.loads(blob_metadata_json)
+                    
+    #             from app.models.table import StatisticsFile, BlobMetadata
+    #             statistics = StatisticsFile(
+    #                 snapshot_id=record["snapshot_id"],
+    #                 statistics_path=record["statistics_path"],
+    #                 file_size_in_bytes=record["file_size_in_bytes"],
+    #                 file_footer_size_in_bytes=record["file_footer_size_in_bytes"],
+    #                 blob_metadata=[BlobMetadata.parse_obj(bm) for bm in blob_metadata_json]
+    #             )
+    #             statistics_list.append(statistics)
+            
+    #         # Fetch partition statistics
+    #         partition_query = """
+    #         SELECT snapshot_id, statistics_path, file_size_in_bytes
+    #         FROM partition_statistics
+    #         WHERE table_id = $1
+    #         """
+    #         partition_records = await db.fetch_all(partition_query, table_id)
+            
+    #         for record in partition_records:
+    #             from app.models.table import PartitionStatisticsFile
+    #             partition_stats = PartitionStatisticsFile(
+    #                 snapshot_id=record["snapshot_id"],
+    #                 statistics_path=record["statistics_path"],
+    #                 file_size_in_bytes=record["file_size_in_bytes"]
+    #             )
+    #             partition_statistics_list.append(partition_stats)
+    #     except Exception as e:
+    #         logger.warning(f"Error fetching statistics: {str(e)}. Continuing without statistics.")
+        
+    #     # Handle properties
+    #     properties = table_record["properties"]
+    #     if isinstance(properties, str):
+    #         properties = json.loads(properties)
+        
+    #     # Construct table metadata
+    #     table_metadata_dict = {
+    #         "format-version": basic_metadata["format-version"],
+    #         "table-uuid": basic_metadata["table-uuid"],
+    #         "location": table_record["location"],
+    #         "last-updated-ms": basic_metadata.get("last-updated-ms", table_record["last_updated_ms"]),
+    #         "properties": properties or {},
+    #         "schemas": schemas,
+    #         "current-schema-id": table_record["current_schema_id"],
+    #         "last-column-id": table_record["last_column_id"],
+    #         "partition-specs": partition_specs,
+    #         "default-spec-id": table_record["default_spec_id"],
+    #         "last-partition-id": table_record["last_partition_id"],
+    #         "sort-orders": sort_orders,
+    #         "default-sort-order-id": table_record["default_sort_order_id"],
+    #         "snapshots": snapshots_list,
+    #         "refs": refs,
+    #         "current-snapshot-id": table_record["current_snapshot_id"],
+    #         "last-sequence-number": table_record["last_sequence_number"]
+    #     }
+        
+    #     # Add optional fields if they exist
+    #     if statistics_list:
+    #         table_metadata_dict["statistics"] = statistics_list
+        
+    #     if partition_statistics_list:
+    #         table_metadata_dict["partition-statistics"] = partition_statistics_list
+        
+    #     if table_record.get("row_lineage") is not None:
+    #         table_metadata_dict["row-lineage"] = table_record["row_lineage"]
+        
+    #     if table_record.get("next_row_id") is not None:
+    #         table_metadata_dict["next-row-id"] = table_record["next_row_id"]
+        
+    #     # Parse into TableMetadata object
+    #     table_metadata = TableMetadata.parse_obj(table_metadata_dict)
+        
+    #     # Generate metadata location
+    #     metadata_location = f"{table_record['location']}/metadata/current.metadata.json"
+        
+    #     # Get table configuration and credentials
+    #     config = await TableService.get_table_config(table_id)
+    #     storage_credentials = await TableService.get_storage_credentials(table_id)
+        
+    #     # Cache the table metadata for future 304 responses
+    #     namespace_from_metadata = await TableService.get_table_namespace(table_id)
+    #     table_name = await TableService.get_table_name(table_id)
+    #     await TableService.cache_table_metadata(namespace_from_metadata, table_name, table_metadata.dict(by_alias=True))
+        
+    #     # Return the LoadTableResult
+    #     return LoadTableResult(
+    #         metadata_location=metadata_location,
+    #         metadata=table_metadata,
+    #         config=config,
+    #         storage_credentials=storage_credentials
+    #     )
+
+    @staticmethod
+    async def build_table_response(table_id: int, basic_metadata: Dict, snapshots: Optional[str] = None) -> LoadTableResult:
+        """Build the full table response including all metadata."""
+        # Fetch the remaining table details
+        query = """
+        SELECT t.location, t.current_snapshot_id, t.last_sequence_number,
+            t.last_column_id, t.schema_id, t.current_schema_id,
+            t.default_spec_id, t.last_partition_id, t.default_sort_order_id,
+            t.properties, t.row_lineage, t.next_row_id, t.last_updated_ms
+        FROM tables t
+        WHERE t.id = $1
+        """
+        
+        table_record = await db.fetch_one(query, table_id)
+        
+        # Fetch schemas
+        schemas_query = """
+        SELECT schema_id, schema_json FROM schemas WHERE table_id = $1
+        """
+        schema_records = await db.fetch_all(schemas_query, table_id)
+        schemas = []
+        
+        for record in schema_records:
+            schema_json = record["schema_json"]
+            if isinstance(schema_json, str):
+                schema_json = json.loads(schema_json)
+            schema = Schema.parse_obj(schema_json)
+            schemas.append(schema)
+        
+        # Fetch partition specs
+        specs_query = """
+        SELECT spec_id, spec_json FROM partition_specs WHERE table_id = $1
+        """
+        spec_records = await db.fetch_all(specs_query, table_id)
+        partition_specs = []
+        
+        for record in spec_records:
+            spec_json = record["spec_json"]
+            if isinstance(spec_json, str):
+                spec_json = json.loads(spec_json)
+            spec = PartitionSpec.parse_obj(spec_json)
+            partition_specs.append(spec)
+        
+        # Fetch sort orders
+        orders_query = """
+        SELECT order_id, order_json FROM sort_orders WHERE table_id = $1
+        """
+        order_records = await db.fetch_all(orders_query, table_id)
+        sort_orders = []
+        
+        for record in order_records:
+            order_json = record["order_json"]
+            if isinstance(order_json, str):
+                order_json = json.loads(order_json)
+            order = SortOrder.parse_obj(order_json)
+            sort_orders.append(order)
+        
+        # Fetch snapshots
+        snapshots_query = """
+        SELECT snapshot_id, parent_snapshot_id, sequence_number, timestamp_ms,
+            manifest_list, summary, schema_id
+        FROM snapshots
+        WHERE table_id = $1
+        """
+        
+        # Add filtering based on snapshots parameter
+        if snapshots == "refs":
+            snapshots_query += """
+            AND snapshot_id IN (SELECT snapshot_id FROM snapshot_refs WHERE table_id = $1)
+            """
+        
+        snapshot_records = await db.fetch_all(snapshots_query, table_id)
+        snapshots_list = []
+        
+        for record in snapshot_records:
+            summary_json = record["summary"]
+            if isinstance(summary_json, str):
+                summary_json = json.loads(summary_json)
+            
+            snapshot = Snapshot(
+                snapshot_id=record["snapshot_id"],
+                parent_snapshot_id=record["parent_snapshot_id"],
+                sequence_number=record["sequence_number"],
+                timestamp_ms=record["timestamp_ms"],
+                manifest_list=record["manifest_list"],
+                summary=Summary.parse_obj(summary_json),
+                schema_id=record["schema_id"]
+            )
+            snapshots_list.append(snapshot)
+        
+        # Fetch snapshot references
+        refs_query = """
+        SELECT name, snapshot_id, type, min_snapshots_to_keep,
+            max_snapshot_age_ms, max_ref_age_ms
+        FROM snapshot_refs
+        WHERE table_id = $1
+        """
+        ref_records = await db.fetch_all(refs_query, table_id)
+        refs = {}
+        
+        for record in ref_records:
+            ref = {
+                "type": record["type"],
+                "snapshot-id": record["snapshot_id"],
+            }
+            
+            if record["min_snapshots_to_keep"] is not None:
+                ref["min-snapshots-to-keep"] = record["min_snapshots_to_keep"]
+            
+            if record["max_snapshot_age_ms"] is not None:
+                ref["max-snapshot-age-ms"] = record["max_snapshot_age_ms"]
+                
+            if record["max_ref_age_ms"] is not None:
+                ref["max-ref-age-ms"] = record["max_ref_age_ms"]
+            
+            refs[record["name"]] = ref
+        
+        # Handle properties
+        properties = table_record["properties"]
+        if isinstance(properties, str):
+            properties = json.loads(properties)
+        
+        # Construct table metadata
+        table_metadata_dict = {
+            "format-version": basic_metadata["format-version"],
+            "table-uuid": basic_metadata["table-uuid"],
+            "location": table_record["location"],
+            "last-updated-ms": basic_metadata.get("last-updated-ms", table_record["last_updated_ms"]),
+            "properties": properties or {},
+            "schemas": schemas,
+            "current-schema-id": table_record["current_schema_id"],
+            "last-column-id": table_record["last_column_id"],
+            "partition-specs": partition_specs,
+            "default-spec-id": table_record["default_spec_id"],
+            "last-partition-id": table_record["last_partition_id"],
+            "sort-orders": sort_orders,
+            "default-sort-order-id": table_record["default_sort_order_id"],
+            "snapshots": snapshots_list,
+            "refs": refs,
+            "current-snapshot-id": table_record["current_snapshot_id"],
+            "last-sequence-number": table_record["last_sequence_number"]
+        }
+        
+        # Add optional fields if they exist
+        if table_record.get("row_lineage") is not None:
+            table_metadata_dict["row-lineage"] = table_record["row_lineage"]
+        
+        if table_record.get("next_row_id") is not None:
+            table_metadata_dict["next-row-id"] = table_record["next_row_id"]
+        
+        # Parse into TableMetadata object
+        table_metadata = TableMetadata.parse_obj(table_metadata_dict)
+        
+        # Generate metadata location
+        metadata_location = f"{table_record['location']}/metadata/current.metadata.json"
+        
+        # Get table configuration and credentials
+        config = await TableService.get_table_config(table_id)
+        storage_credentials = await TableService.get_storage_credentials(table_id)
+        
+        # Create the full response dictionary for caching
+        result_dict = {
+            "metadata-location": metadata_location,
+            "metadata": table_metadata.dict(by_alias=True),
+            "config": config,
+            "storage-credentials": [c.dict(by_alias=True) for c in storage_credentials] if storage_credentials else None
+        }
+        
+        # Cache the table metadata for future 304 responses
+        namespace_from_metadata = await TableService.get_table_namespace(table_id)
+        table_name = await TableService.get_table_name(table_id)
+        await TableService.cache_table_metadata(namespace_from_metadata, table_name, result_dict)
+        
+        # Return the LoadTableResult
+        return LoadTableResult(
+            metadata_location=metadata_location,
+            metadata=table_metadata,
+            config=config,
+            storage_credentials=storage_credentials
+        )
+
+    @staticmethod
+    async def get_table_namespace(table_id: int) -> List[str]:
+        """Get the namespace for a table by ID."""
+        query = """
+        SELECT n.levels FROM namespaces n
+        JOIN tables t ON t.namespace_id = n.id
+        WHERE t.id = $1
+        """
+        
+        record = await db.fetch_one(query, table_id)
+        return record["levels"] if record else []
+
+    @staticmethod
+    async def get_table_name(table_id: int) -> str:
+        """Get the name of a table by ID."""
+        query = """
+        SELECT name FROM tables
+        WHERE id = $1
+        """
+        
+        record = await db.fetch_one(query, table_id)
+        return record["name"] if record else ""
     
     @staticmethod
     async def get_storage_credentials(table_id: int) -> List[StorageCredential]:
         """
         Get storage credentials for a table.
         """
-        # In a real implementation, this would fetch credentials from a database
-        # For now, return some example credentials
-        return [
-            StorageCredential(
-                prefix="s3://",
-                config={
-                    "region": "us-west-2",
-                    "access-key-id": "XXX",
-                    "secret-access-key": "XXX"
-                }
+        # Get the table location
+        query = """
+        SELECT location FROM tables
+        WHERE id = $1
+        """
+        logger.debug(f"Fetching location for table ID: {table_id}")
+        table_record = await db.fetch_one(query, table_id)
+        if not table_record:
+            logger.warning(f"No table found with ID: {table_id}")
+            return []
+        
+        location = table_record["location"]
+        logger.debug(f"Found table location: {location}")
+        
+        # 1. Try table-specific credentials
+        query = """
+        SELECT prefix, warehouse, config FROM storage_credentials
+        WHERE table_id = $1
+        """
+        cred_records = await db.fetch_all(query, table_id)
+        logger.debug(f"Found {len(cred_records) if cred_records else 0} table-specific credentials")
+        
+        if not cred_records or len(cred_records) == 0:
+            # 2. Try location-based credentials - use simplified exact prefix matching
+            query = """
+            SELECT prefix, warehouse, config FROM storage_credentials
+            WHERE table_id IS NULL AND $1 LIKE (warehouse || '%')
+            ORDER BY LENGTH(warehouse) DESC
+            """
+            logger.debug(f"Executing query for location {location}: {query}")
+            cred_records = await db.fetch_all(query, location)
+            logger.debug(f"Found {len(cred_records) if cred_records else 0} location-based credentials for {location}")
+
+            # If still no records, try a more direct approach
+            if not cred_records or len(cred_records) == 0:
+                # 3. Direct query to debug
+                query = """
+                SELECT prefix, warehouse, config FROM storage_credentials
+                WHERE table_id IS NULL
+                """
+                all_records = await db.fetch_all(query)
+                logger.debug(f"All available global credentials: {len(all_records)}")
+                
+                for record in all_records:
+                    warehouse = record["warehouse"]
+                    logger.debug(f"Checking if {location} starts with {warehouse}")
+                    if location.startswith(warehouse):
+                        logger.debug(f"Match found for warehouse: {warehouse}")
+                        cred_records = [record]
+                        break
+        
+        # Convert results to StorageCredential models
+        credentials = []
+        for record in cred_records:
+            config = record["config"]
+            if isinstance(config, str):
+                config = json.loads(config)
+            
+            credentials.append(
+                StorageCredential(
+                    prefix=record["warehouse"], 
+                    config=config
+                )
             )
-        ]
+        
+        logger.info(f"Returning {len(credentials)} credentials for table ID: {table_id}")
+        for cred in credentials:
+            logger.debug(f"Credential prefix: {cred.prefix}, config: {cred.config}")
+        
+        return credentials
     
     @staticmethod
     async def load_table(
@@ -500,25 +1149,46 @@ class TableService:
                 properties = json.loads(properties)
             
             # Construct table metadata
-            table_metadata = TableMetadata(
-                format_version=table_record["format_version"],
-                table_uuid=table_record["table_uuid"],
-                location=table_record["location"],
-                last_updated_ms=table_record["last_updated_ms"],
-                properties=properties,
-                schemas=schemas,
-                current_schema_id=table_record["current_schema_id"],
-                last_column_id=table_record["last_column_id"],
-                partition_specs=partition_specs,
-                default_spec_id=table_record["default_spec_id"],
-                last_partition_id=table_record["last_partition_id"],
-                sort_orders=sort_orders,
-                default_sort_order_id=table_record["default_sort_order_id"],
-                snapshots=snapshots_list,
-                refs=refs,
-                current_snapshot_id=table_record["current_snapshot_id"],
-                last_sequence_number=table_record["last_sequence_number"]
-            )
+            # table_metadata = TableMetadata(
+            #     format_version=table_record["format_version"],
+            #     table_uuid=table_record["table_uuid"],
+            #     location=table_record["location"],
+            #     last_updated_ms=table_record["last_updated_ms"],
+            #     properties=properties,
+            #     schemas=schemas,
+            #     current_schema_id=table_record["current_schema_id"],
+            #     last_column_id=table_record["last_column_id"],
+            #     partition_specs=partition_specs,
+            #     default_spec_id=table_record["default_spec_id"],
+            #     last_partition_id=table_record["last_partition_id"],
+            #     sort_orders=sort_orders,
+            #     default_sort_order_id=table_record["default_sort_order_id"],
+            #     snapshots=snapshots_list,
+            #     refs=refs,
+            #     current_snapshot_id=table_record["current_snapshot_id"],
+            #     last_sequence_number=table_record["last_sequence_number"]
+            # )
+
+            # Construct table metadata
+            table_metadata = TableMetadata.parse_obj({
+                "format-version": table_record["format_version"],
+                "table-uuid": str(table_record["table_uuid"]),
+                "location": table_record["location"],
+                "last-updated-ms": table_record["last_updated_ms"],
+                "properties": properties,
+                "schemas": schemas,
+                "current-schema-id": table_record["current_schema_id"],
+                "last-column-id": table_record["last_column_id"],
+                "partition-specs": partition_specs,
+                "default-spec-id": table_record["default_spec_id"],
+                "last-partition-id": table_record["last_partition_id"],
+                "sort-orders": sort_orders,
+                "default-sort-order-id": table_record["default_sort_order_id"],
+                "snapshots": snapshots_list,
+                "refs": refs,
+                "current-snapshot-id": table_record["current_snapshot_id"],
+                "last-sequence-number": table_record["last_sequence_number"]
+            })
             
             # Generate metadata location
             metadata_location = f"{table_record['location']}/metadata/current.metadata.json"
@@ -528,16 +1198,23 @@ class TableService:
             config = await TableService.get_table_config(table_id)
             
             # Get storage credentials if requested
-            storage_credentials = None
-            if x_iceberg_access_delegation:
-                storage_credentials = await TableService.get_storage_credentials(table_id)
+            # the below code will vend credentials only with header x-iceberg-access-delegation
+            # commenting this out for now as we are not using it
+            # storage_credentials = None
+            # if x_iceberg_access_delegation:
+            #     storage_credentials = await TableService.get_storage_credentials(table_id)
             
-            return LoadTableResult(
-                metadata_location=metadata_location,
-                metadata=table_metadata,
-                config=config,
-                storage_credentials=storage_credentials
-            ), etag
+            # the below code will vend credentials for all tables without any header
+            storage_credentials = await TableService.get_storage_credentials(table_id)
+            logger.debug(f"Found {len(storage_credentials)} credentials for table {table_id}")
+            # Use parse_obj to handle aliased field properly
+            result = LoadTableResult.parse_obj({
+                "metadata-location": metadata_location,
+                "metadata": table_metadata.dict(by_alias=True),
+                "config": config,
+                "storage-credentials": storage_credentials
+            })
+            return result, etag
             
         except ValueError:
             # Re-raise ValueError for not found
@@ -610,9 +1287,7 @@ class TableService:
         namespace_levels: List[str],
         table_name: str
     ) -> LoadCredentialsResponse:
-        """
-        Load credentials for a table from the catalog.
-        """
+        """Load credentials for a table from the catalog."""
         logger.info(f"Loading credentials for table {namespace_levels}.{table_name}")
         
         # Check if table exists and get its location
@@ -630,33 +1305,54 @@ class TableService:
         table_id = table_record["id"]
         location = table_record["location"]
         
-        # Fetch credentials from storage_credentials table
-        # First try table-specific credentials
+        # 1. Try table-specific credentials
         query = """
-        SELECT prefix, config FROM storage_credentials
-        WHERE table_id = $1 OR
-            $2 LIKE CONCAT(prefix, '%')
-        ORDER BY LENGTH(prefix) DESC
+        SELECT prefix, warehouse, config FROM storage_credentials
+        WHERE table_id = $1
         """
+        cred_records = await db.fetch_all(query, table_id)
         
-        credential_records = await db.fetch_all(query, table_id, location)
+        if not cred_records:
+            # 2. Try location-based credentials
+            query = """
+            SELECT prefix, warehouse, config FROM storage_credentials
+            WHERE table_id IS NULL AND 
+                $1 LIKE CONCAT(warehouse, '%')
+            ORDER BY LENGTH(warehouse) DESC
+            """
+            cred_records = await db.fetch_all(query, location)
+        
+        if not cred_records:
+            # 3. Try namespace prefix-based credentials
+            namespace_prefix = namespace_levels[0] if namespace_levels else 'default'
+            query = """
+            SELECT prefix, warehouse, config FROM storage_credentials
+            WHERE table_id IS NULL AND
+                prefix = $1
+            ORDER BY LENGTH(warehouse) DESC
+            """
+            cred_records = await db.fetch_all(query, namespace_prefix)
         
         # Convert results to StorageCredential models
         credentials = []
-        for record in credential_records:
+        for record in cred_records:
             config = record["config"]
             if isinstance(config, str):
                 config = json.loads(config)
             
             credentials.append(
                 StorageCredential(
-                    prefix=record["prefix"],
+                    prefix=record["warehouse"],  # This matches the API model
                     config=config
                 )
             )
         
         logger.info(f"Loaded {len(credentials)} credential(s) for table {namespace_levels}.{table_name}")
-        return LoadCredentialsResponse(storage_credentials=credentials)
+        
+        # Use parse_obj to handle field aliases
+        return LoadCredentialsResponse.parse_obj({
+            "storage-credentials": credentials
+        })
     
     @staticmethod
     async def rename_table(
