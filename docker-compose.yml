@@ -11,7 +11,8 @@ services:
       - ENVIRONMENT=development
       - LOG_FILE_PATH=/logs/iceberg-catalog.log
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - ./app:/code/app
       - ./logs:/logs  # Mount logs directory
