@@ -2,11 +2,12 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from app.middleware.prefix_middleware import PrefixMiddleware 
 import traceback
 import os
 
 from app.database import db
-from app.api import config
+from app.api import config, namespaces
 from app.utils.logger import logger
 # Import other API routers here as needed
 
@@ -26,8 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add our custom prefix rewriting middleware
+app.add_middleware(PrefixMiddleware)
+
 # Register routers
 app.include_router(config.router, tags=["Configuration API"])
+app.include_router(namespaces.router, tags=["Namespace API"])
 # Include other routers here
 
 # Enable/disable debug based on environment
